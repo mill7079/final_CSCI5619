@@ -1,4 +1,4 @@
-/* CSCI 5619 Assignment 7, Fall 2020
+/* CSCI 5619 Final, Fall 2020
  * Author: Evan Suma Rosenberg
  * License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
  */ 
@@ -30,6 +30,7 @@ class Game
     private client: any;
     private user = "";
     private password = "";
+    private clientState = "";
 
     constructor()
     {
@@ -50,25 +51,11 @@ class Game
         //this.client = MATRIX.createClient("https://matrix.tchncs.de");
         this.client = MATRIX.createClient("https://matrix.org");
 
-        this.client.publicRooms(function (err: any, data: any) {
-
-            if (err) {
-                console.error("err %s", JSON.stringify(err));
-                //return;
-            }
-
-            console.log("Public Rooms: %s", JSON.stringify(data));
-        });
-
-        this.client.login("m.login.password", { user: this.user, password: this.password }).then((response: any) => {
-            console.log("logged in!");
-            //console.log("access token : " + response.access_token);
-        });
-
-        this.client.startClient();
-
         // debugging
         console.log("domain " + this.client.getHomeserverUrl());
+
+        // join a room
+        //this.client.joinRoom("#5619final:matrix.org");
     }
 
     start() : void 
@@ -167,12 +154,36 @@ class Game
         // find room id?? theoretically?
         //var id = await this.client.getRoomIdForAlias("#5619final:matrix.org");
         //console.log("id: " + id.roomId);
+
+
+        await this.client.publicRooms(function (err: any, data: any) {
+
+            if (err) {
+                console.error("err %s", JSON.stringify(err));
+                //return;
+            }
+
+            console.log("Public Rooms: %s", JSON.stringify(data));
+        });
+
+        await this.client.login("m.login.password", { user: this.user, password: this.password }).then((response: any) => {
+            console.log("logged in!");
+            //console.log("access token : " + response.access_token);
+        });
+
+        await this.client.startClient();
+
+        var rooms = this.client.getRooms();
+        console.log("rooms: " + rooms.length);
+        rooms.forEach((room: any) => {
+            console.log(room.roomId);
+        });
     }
 
     // The main update loop will be executed once per frame before the scene is rendered
     private update() : void
     {
- 
+
     }
 
 }
