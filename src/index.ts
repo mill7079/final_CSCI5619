@@ -172,12 +172,28 @@ class Game
         });
 
         await this.client.startClient();
+        //console.log("user id: " + this.client.getUserId());
 
         var rooms = this.client.getRooms();
         console.log("rooms: " + rooms.length);
         rooms.forEach((room: any) => {
             console.log(room.roomId);
         });
+
+        // join the room - unsure if this is needed but it at least works? I think?
+        await this.client.joinRoom("#5619final:matrix.org").then((response: any) => {
+            console.log("join? " + response.name);
+            console.log("id: " + response.roomId);
+            console.log("summary: " + response.summary);
+            console.log("joined members: " + response.getJoinedMembers().length);
+        });
+
+        // send a message
+        var message = {
+            body: "hello",
+            msgtype: "m.text"
+        };
+        this.client.sendMessage("!FQlzwKdCBFuEnQusdk:matrix.org", message, "");
     }
 
     // The main update loop will be executed once per frame before the scene is rendered
