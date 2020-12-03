@@ -29,8 +29,8 @@ class Game
     private rightController: WebXRInputSource | null;
 
     private client: any;
-    private user = "";
-    private password = "";
+    private user = "mill7079";
+    private password = "5619finalproject";
 
     private gameState: State;
 
@@ -149,51 +149,60 @@ class Game
         //    console.log("Public Rooms: %s", JSON.stringify(data));
         //});
 
-        // log in
-        await this.client.login("m.login.password", { user: this.user, password: this.password }).then((response: any) => {
-            console.log("logged in!");
-            //console.log("access token : " + response.access_token);
-        });
 
-        // start client
-        await this.client.startClient({ initialSyncLimit: 10 });
+
+        // the following is theoretically done by the connect function now
+        await this.connect(this.user, this.password);
+
+        ////log in
+        //await this.client.login("m.login.password", { user: this.user, password: this.password }).then((response: any) => {
+        //    console.log("logged in!");
+        //    //console.log("access token : " + response.access_token);
+        //});
+
+        //// start client
+        //await this.client.startClient({ initialSyncLimit: 10 });
 
         // sync client
         // source of many errors - if you need to do something that requires the client to be synced, just put the code in the callback
         // no idea how to wait for it to finish so it's always the last thing to print
-        var c = this.client;
-        await this.client.once('sync', function (state: any, prevState: any, res: any) {
-            console.log("prev state: " + prevState);
-            console.log("state: " + state); // state will be 'PREPARED' when the client is ready to use
+        //var c = this.client;
+        //await this.client.once('sync', function (state: any, prevState: any, res: any) {
+        //    console.log("prev state: " + prevState);
+        //    console.log("state: " + state); // state will be 'PREPARED' when the client is ready to use
 
-            //var room = c.getRoom("!FQlzwKdCBFuEnQusdk:matrix.org");
-            //if (room) {
-            //    console.log("roomy room: " + room.name);
-            //}
-            //else {
-            //    console.log("not synced");
-            //}
-            //console.log("get sync state: " + c.getSyncState());
+        //    //var room = c.getRoom("!FQlzwKdCBFuEnQusdk:matrix.org");
+        //    //if (room) {
+        //    //    console.log("roomy room: " + room.name);
+        //    //}
+        //    //else {
+        //    //    console.log("not synced");
+        //    //}
+        //    //console.log("get sync state: " + c.getSyncState());
 
-            //Object.keys(c.store.rooms).forEach((roomId: string) => {
-            //    c.getRoom(roomId).timeline.forEach((t: any) => {
-            //        //console.log(t.event);
-            //        console.log(t.getContent());
-            //    });
-            //});
-        });
+        //    //Object.keys(c.store.rooms).forEach((roomId: string) => {
+        //    //    c.getRoom(roomId).timeline.forEach((t: any) => {
+        //    //        //console.log(t.event);
+        //    //        console.log(t.getContent());
+        //    //    });
+        //    //});
+        //});
 
         // add an event listener to get past messages and listen for new ones
         // using 'this' only works in this specific formatting (with the arrow function) because javascript sucks
         // beware: will get all messages from all rooms you've joined 
-        this.client.on("Room.timeline", (event:any, room:any, toStartOfTimeline:any) => {
-            console.log(event.event.content.body);
+        //this.client.on("Room.timeline", (event:any, room:any, toStartOfTimeline:any) => {
+        //    console.log(event.event.content.body);
 
-            // send messages to function to check if it's an update message
-            if (event.event.type == 'm.room.message') {
-                this.updateEnv(event.event.content.body);
-            }
-        });
+        //    // send messages to function to check if it's an update message
+        //    if (event.event.type == 'm.room.message') {
+        //        this.updateEnv(event.event.content.body);
+        //    }
+        //});
+
+
+
+
 
 
         // send a message
@@ -225,6 +234,34 @@ class Game
             var sphere = MeshBuilder.CreateSphere("sphere", { diameter: 1 }, this.scene);
             sphere.position = new Vector3(0, 1.5, 3);
         }
+    }
+
+    private async connect(user: string, pass: string) {
+        // login
+        await this.client.login("m.login.password", { user: user, password: pass }).then((response: any) => {
+            console.log("logged in!");
+        }).catch((err: any) => {
+            console.log("error logging in user " + user);
+            return;
+        });
+
+        // start client
+        await this.client.startClient({ initialSyncLimit: 10 });
+
+        // sync client - hopefully finishes before sync is needed
+        await this.client.once('sync', function (state: any, prevState: any, res: any) {
+            console.log("client state: " + state); // state will be 'PREPARED' when the client is ready to use
+        });
+
+        // add message listener
+        this.client.on("Room.timeline", (event: any, room: any, toStartOfTimeline: any) => {
+            //console.log(event.event.content.body);
+
+            // send messages to function to check if it's an update message
+            if (event.event.type == 'm.room.message') {
+                this.updateEnv(event.event.content.body);
+            }
+        });
     }
 
 }
