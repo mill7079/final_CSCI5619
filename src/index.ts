@@ -29,8 +29,8 @@ class Game
     private rightController: WebXRInputSource | null;
 
     private client: any;
-    private user = "mill7079";
-    private password = "5619finalproject";
+    private user = "";
+    private password = "";
 
     private gameState: State;
 
