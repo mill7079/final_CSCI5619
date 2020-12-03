@@ -11,6 +11,7 @@ import { WebXRInputSource } from "@babylonjs/core/XR/webXRInputSource";
 import { WebXRCamera } from "@babylonjs/core/XR/webXRCamera";
 import { PointLight } from "@babylonjs/core/Lights/pointLight";
 import { Logger } from "@babylonjs/core/Misc/logger";
+import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import * as MATRIX from "matrix-js-sdk"
 
 // Side effects
@@ -30,7 +31,8 @@ class Game
     private client: any;
     private user = "";
     private password = "";
-    private clientState = "";
+
+    private gameState: State;
 
     constructor()
     {
@@ -48,14 +50,12 @@ class Game
         this.rightController = null;
 
         // create client on server
-        //this.client = MATRIX.createClient("https://matrix.tchncs.de");
         this.client = MATRIX.createClient("https://matrix.org");
 
         // debugging
-        console.log("domain " + this.client.getHomeserverUrl());
+        //console.log("domain " + this.client.getHomeserverUrl());
 
-        // join a room
-        //this.client.joinRoom("#5619final:matrix.org");
+        this.gameState = new State();
     }
 
     start() : void 
@@ -73,9 +73,6 @@ class Game
             window.addEventListener("resize", () => { 
                 this.engine.resize();
             });
-
-            //this.client.joinRoom("#5619final:matrix.org");
-            //this.client.joinRoom("!FQlzwKdCBFuEnQusdk:matrix.org");
 
         });
     }
@@ -142,58 +139,70 @@ class Game
 
 
         // Matrix connection stuff
-        // do we need this?
-        //await this.client.startClient({ initialSyncLimit: 10 });
 
+        // debugging
+        //await this.client.publicRooms(function (err: any, data: any) {
+        //    if (err) {
+        //        console.error("err %s", JSON.stringify(err));
+        //        //return;
+        //    }
+        //    console.log("Public Rooms: %s", JSON.stringify(data));
+        //});
 
         // log in
-        //this.client.loginWithPassword(this.user, this.password);
-
-        // join a room
-
-        // find room id?? theoretically?
-        //var id = await this.client.getRoomIdForAlias("#5619final:matrix.org");
-        //console.log("id: " + id.roomId);
-
-
-        await this.client.publicRooms(function (err: any, data: any) {
-
-            if (err) {
-                console.error("err %s", JSON.stringify(err));
-                //return;
-            }
-
-            console.log("Public Rooms: %s", JSON.stringify(data));
-        });
-
         await this.client.login("m.login.password", { user: this.user, password: this.password }).then((response: any) => {
             console.log("logged in!");
             //console.log("access token : " + response.access_token);
         });
 
-        await this.client.startClient();
-        //console.log("user id: " + this.client.getUserId());
+        // start client
+        await this.client.startClient({ initialSyncLimit: 10 });
 
-        var rooms = this.client.getRooms();
-        console.log("rooms: " + rooms.length);
-        rooms.forEach((room: any) => {
-            console.log(room.roomId);
+        // sync client
+        // source of many errors - if you need to do something that requires the client to be synced, just put the code in the callback
+        // no idea how to wait for it to finish so it's always the last thing to print
+        var c = this.client;
+        await this.client.once('sync', function (state: any, prevState: any, res: any) {
+            console.log("prev state: " + prevState);
+            console.log("state: " + state); // state will be 'PREPARED' when the client is ready to use
+
+            //var room = c.getRoom("!FQlzwKdCBFuEnQusdk:matrix.org");
+            //if (room) {
+            //    console.log("roomy room: " + room.name);
+            //}
+            //else {
+            //    console.log("not synced");
+            //}
+            //console.log("get sync state: " + c.getSyncState());
+
+            //Object.keys(c.store.rooms).forEach((roomId: string) => {
+            //    c.getRoom(roomId).timeline.forEach((t: any) => {
+            //        //console.log(t.event);
+            //        console.log(t.getContent());
+            //    });
+            //});
         });
 
-        // join the room - unsure if this is needed but it at least works? I think?
-        await this.client.joinRoom("#5619final:matrix.org").then((response: any) => {
-            console.log("join? " + response.name);
-            console.log("id: " + response.roomId);
-            console.log("summary: " + response.summary);
-            console.log("joined members: " + response.getJoinedMembers().length);
+        // add an event listener to get past messages and listen for new ones
+        // using 'this' only works in this specific formatting (with the arrow function) because javascript sucks
+        // beware: will get all messages from all rooms you've joined 
+        this.client.on("Room.timeline", (event:any, room:any, toStartOfTimeline:any) => {
+            console.log(event.event.content.body);
+
+            // send messages to function to check if it's an update message
+            if (event.event.type == 'm.room.message') {
+                this.updateEnv(event.event.content.body);
+            }
         });
+
 
         // send a message
-        var message = {
-            body: "hello",
-            msgtype: "m.text"
-        };
-        this.client.sendMessage("!FQlzwKdCBFuEnQusdk:matrix.org", message, "");
+        //var message = {
+        //    body: "hello",
+        //    msgtype: "m.text"
+        //};
+        //this.client.sendEvent("!FQlzwKdCBFuEnQusdk:matrix.org", "m.room.message", message, "");
+
     }
 
     // The main update loop will be executed once per frame before the scene is rendered
@@ -202,8 +211,41 @@ class Game
 
     }
 
+    // updates environment according to message received from room
+    // creates a cube if the message was 'cube' and a sphere if message was 'sphere'
+    // mostly just testing things at this point, the real thing is going to be way more complicated
+    private updateEnv(message: string) {
+        console.log("update found: " + message);
+        if (message == "cube") {
+            console.log("create a cube!");
+            var cube = MeshBuilder.CreateBox("cube", { size: 1 }, this.scene);
+            cube.position = new Vector3(3, 1.5, 0);
+        } else if (message == "sphere") {
+            console.log("create a sphere!");
+            var sphere = MeshBuilder.CreateSphere("sphere", { diameter: 1 }, this.scene);
+            sphere.position = new Vector3(0, 1.5, 3);
+        }
+    }
+
 }
-/******* End of the Game class ******/   
+/******* End of the Game class ******/
+
+
+
+// used for storing and sharing the environment state...maybe
+class State {
+    // still....working out how to communicate these
+    //private users: Vector3[][]; // list of users in terms of position (headset/left/right)
+    //private objects: AbstractMesh[] = []; // list of environment objects (shape/options/position...etc?)
+    constructor() {
+
+    }
+
+    public toString() : string {
+        return "";
+    }
+}
+
 
 // start the game
 var game = new Game();
