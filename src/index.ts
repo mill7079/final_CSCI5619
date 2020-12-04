@@ -15,7 +15,8 @@ import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { AdvancedDynamicTexture } from "@babylonjs/gui/2D/advancedDynamicTexture";
 import { InputPassword, InputText } from "@babylonjs/gui/2D/controls";
-import { VirtualKeyboard } from "@babylonjs/gui/2D/controls/virtualKeyboard" 
+import { VirtualKeyboard } from "@babylonjs/gui/2D/controls/virtualKeyboard";
+import { TextBlock } from "@babylonjs/gui/2D/controls/textBlock";
 import * as MATRIX from "matrix-js-sdk"
 
 // Side effects
@@ -36,9 +37,9 @@ class Game
 
     private client: any;
     private user = "";
-    private disposeGUI = false;
 
     private guiPlane: AbstractMesh | null;
+    private loginStatus: AbstractMesh | null;
     private black = "#070707";
     private gray = "#808080";
 
@@ -69,6 +70,7 @@ class Game
         this.client = MATRIX.createClient("https://matrix.org");
 
         this.guiPlane = null;
+        this.loginStatus = null;
 
         // debugging
         //console.log("domain " + this.client.getHomeserverUrl());
@@ -267,6 +269,24 @@ class Game
         inputPass.background = this.gray;
         guiTexture.addControl(inputPass);
 
+        // login status page for visual feedback
+        this.loginStatus = MeshBuilder.CreatePlane("loginStatus", {}, this.scene);
+        this.loginStatus.position = this.guiPlane.position.clone();
+        this.loginStatus.isPickable = false;
+        this.loginStatus.isVisible = false;
+
+        var loginMesh = AdvancedDynamicTexture.CreateForMesh(this.loginStatus, 512, 512);
+        loginMesh.background = this.black";
+
+        var loggingIn = new TextBlock();
+        loggingIn.text = "Logging in...";
+        loggingIn.color = "white";
+        loggingIn.fontSize = 64;
+        loggingIn.textHorizontalAlignment = TextBlock.HORIZONTAL_ALIGNMENT_CENTER;
+        loggingIn.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
+        loginMesh.addControl(loggingIn);
+
+        // keyboard to enter user/password
         var virtualKeyboard = VirtualKeyboard.CreateDefaultLayout("virtualKeyboard");
         virtualKeyboard.scaleX = 2.0;
         virtualKeyboard.scaleY = 2.0;
@@ -305,6 +325,7 @@ class Game
                         isUser = true;
 
                         // log user in
+                        this.loginStatus!.isVisible = true;
                         this.connect(this.user, inputPass.text);
                     }
 
@@ -324,10 +345,6 @@ class Game
     // The main update loop will be executed once per frame before the scene is rendered
     private update() : void
     {
-        // get rid of login GUI after successful login
-        if (this.disposeGUI) {
-            this.guiPlane?.dispose(false, true);
-        }
 
 
 
@@ -358,14 +375,19 @@ class Game
             return;
         });
 
-        this.disposeGUI = true;
+        this.guiPlane?.dispose(false, true);
 
         // start client
         await this.client.startClient({ initialSyncLimit: 10 });
 
         // sync client - hopefully finishes before sync is needed
-        await this.client.once('sync', function (state: any, prevState: any, res: any) {
+        //await this.client.once('sync', function (state: any, prevState: any, res: any) {
+        //    console.log("client state: " + state); // state will be 'PREPARED' when the client is ready to use
+            
+        //});
+        await this.client.once('sync', (state: any, prevState: any, res: any) => {
             console.log("client state: " + state); // state will be 'PREPARED' when the client is ready to use
+            this.loginStatus!.dispose(false, true);
         });
 
         // add message listener
