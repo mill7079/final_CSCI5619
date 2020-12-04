@@ -36,7 +36,9 @@ class Game
 
     private client: any;
     private user = "";
+    private disposeGUI = false;
 
+    private guiPlane: AbstractMesh | null;
     private black = "#070707";
     private gray = "#808080";
 
@@ -65,6 +67,8 @@ class Game
 
         // create client on server
         this.client = MATRIX.createClient("https://matrix.org");
+
+        this.guiPlane = null;
 
         // debugging
         //console.log("domain " + this.client.getHomeserverUrl());
@@ -239,10 +243,11 @@ class Game
 
 
         // create login gui
-        var guiPlane = MeshBuilder.CreatePlane("guiPlane", {}, this.scene);
-        guiPlane.position = new Vector3(0, 1, 1);
+        //var guiPlane = MeshBuilder.CreatePlane("guiPlane", {}, this.scene);
+        this.guiPlane = MeshBuilder.CreatePlane("guiPlane", {}, this.scene);
+        this.guiPlane.position = new Vector3(0, 1, 1);
 
-        var guiTexture = AdvancedDynamicTexture.CreateForMesh(guiPlane, 1024, 1024);
+        var guiTexture = AdvancedDynamicTexture.CreateForMesh(this.guiPlane, 1024, 1024);
         var inputUser = new InputText("inputUser");
         inputUser.top = -320;
         inputUser.width = 1;
@@ -319,6 +324,12 @@ class Game
     // The main update loop will be executed once per frame before the scene is rendered
     private update() : void
     {
+        // get rid of login GUI after successful login
+        if (this.disposeGUI) {
+            this.guiPlane?.dispose(false, true);
+        }
+
+
 
     }
 
@@ -346,6 +357,8 @@ class Game
             console.log("error logging in user " + user);
             return;
         });
+
+        this.disposeGUI = true;
 
         // start client
         await this.client.startClient({ initialSyncLimit: 10 });
