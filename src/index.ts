@@ -12,6 +12,10 @@ import { WebXRCamera } from "@babylonjs/core/XR/webXRCamera";
 import { PointLight } from "@babylonjs/core/Lights/pointLight";
 import { Logger } from "@babylonjs/core/Misc/logger";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
+import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
+import { AdvancedDynamicTexture } from "@babylonjs/gui/2D/advancedDynamicTexture";
+import { InputPassword, InputText } from "@babylonjs/gui/2D/controls";
+import { VirtualKeyboard } from "@babylonjs/gui/2D/controls/virtualKeyboard" 
 import * as MATRIX from "matrix-js-sdk"
 
 // Side effects
@@ -27,6 +31,8 @@ class Game
     private xrCamera: WebXRCamera | null; 
     private leftController: WebXRInputSource | null;
     private rightController: WebXRInputSource | null;
+    private leftHand: AbstractMesh;
+    private rightHand: AbstractMesh;
 
     private client: any;
     private user = "";
@@ -48,6 +54,12 @@ class Game
         this.xrCamera = null;
         this.leftController = null;
         this.rightController = null;
+        this.leftHand = MeshBuilder.CreateSphere("leftHand", { diameter: 0.1 }, this.scene);
+        this.rightHand = MeshBuilder.CreateSphere("rightHand", { diameter: 0.1 }, this.scene);
+        this.leftHand.isPickable = false;
+        this.leftHand.isVisible = false;
+        this.rightHand.isPickable = false;
+        this.rightHand.isVisible = false;
 
         // create client on server
         this.client = MATRIX.createClient("https://matrix.org");
@@ -116,22 +128,34 @@ class Game
 
         // Assign the left and right controllers to member variables
         xrHelper.input.onControllerAddedObservable.add((inputSource) => {
+            inputSource.onMeshLoadedObservable.add((mesh) => {
+                if (mesh.name != "leftHand" && mesh.name != "rightHand") {
+                    mesh.dispose();
+                }
+            });
             if(inputSource.uniqueId.endsWith("right"))
             {
                 this.rightController = inputSource;
+                this.rightHand.parent = this.rightController.grip!;
+                this.rightHand.isVisible = true;
             }
             else 
             {
                 this.leftController = inputSource;
+                this.leftHand.parent = this.leftController.grip!;
+                this.leftHand.isVisible = true;
             }  
         });
 
         // Don't forget to deparent objects from the controllers or they will be destroyed!
         xrHelper.input.onControllerRemovedObservable.add((inputSource) => {
 
-            if(inputSource.uniqueId.endsWith("right")) 
-            {
-
+            if (inputSource.uniqueId.endsWith("right")) {
+                this.rightHand.parent = null;
+                this.rightHand.isVisible = false;
+            } else {
+                this.leftHand.parent = null;
+                this.leftHand.isVisible = false;
             }
         });
 
@@ -152,7 +176,6 @@ class Game
 
 
         // the following is theoretically done by the connect function now
-        await this.connect(this.user, this.password);
 
         ////log in
         //await this.client.login("m.login.password", { user: this.user, password: this.password }).then((response: any) => {
@@ -212,6 +235,79 @@ class Game
         //};
         //this.client.sendEvent("!FQlzwKdCBFuEnQusdk:matrix.org", "m.room.message", message, "");
 
+
+        // create login gui
+        var guiPlane = MeshBuilder.CreatePlane("guiPlane", {}, this.scene);
+        guiPlane.isPickable = false;
+        guiPlane.position = new Vector3(0, 1, 1);
+
+        var guiTexture = AdvancedDynamicTexture.CreateForMesh(guiPlane, 1024, 1024);
+        var inputUser = new InputText("inputUser");
+        inputUser.top = -320;
+        inputUser.width = 1;
+        inputUser.height = "80px";
+        inputUser.fontSize = 36;
+        inputUser.color = "white";
+        inputUser.background = "#070707";
+        guiTexture.addControl(inputUser);
+        
+        var inputPass = new InputPassword("inputPass");
+        inputPass.top = -240;
+        inputPass.width = 1;
+        inputPass.height = "80px";
+        inputPass.fontSize = 36;
+        inputPass.color = "white";
+        inputPass.background = "#070707";
+        guiTexture.addControl(inputPass);
+
+        var virtualKeyboard = VirtualKeyboard.CreateDefaultLayout("virtualKeyboard");
+        virtualKeyboard.scaleX = 2.0;
+        virtualKeyboard.scaleY = 2.0;
+        guiTexture.addControl(virtualKeyboard);
+        var isUser = true;
+        virtualKeyboard.onKeyPressObservable.add((key) => {
+            switch (key) {
+                // Backspace
+                case '\u2190':
+                    if (isUser) {
+                        inputUser.processKey(8);
+                    } else {
+                        inputPass.processKey(8);
+                    }
+                    break;
+
+                // Shift
+                case '\u21E7':
+                    virtualKeyboard.shiftState = virtualKeyboard.shiftState == 0 ? 1 : 0;
+                    virtualKeyboard.applyShiftState(virtualKeyboard.shiftState);
+                    break;
+
+                // Enter
+                case '\u21B5':
+                    if (isUser) {
+                        inputUser.processKey(13);
+                        this.user = inputUser.text;
+                        isUser = false;
+                    } else {
+                        inputPass.processKey(13);
+                        this.password = inputPass.text;
+                        isUser = true;
+
+                        // log user in
+                        this.connect(this.user, this.password);
+                    }
+
+                    break;
+
+                default:
+                    if (isUser) {
+                        inputUser.processKey(-1, virtualKeyboard.shiftState == 0 ? key : key.toUpperCase());
+                    } else {
+                        inputPass.processKey(-1, virtualKeyboard.shiftState == 0 ? key : key.toUpperCase());
+                    }
+            }
+        });
+
     }
 
     // The main update loop will be executed once per frame before the scene is rendered
@@ -232,7 +328,7 @@ class Game
         } else if (message == "sphere") {
             console.log("create a sphere!");
             var sphere = MeshBuilder.CreateSphere("sphere", { diameter: 1 }, this.scene);
-            sphere.position = new Vector3(0, 1.5, 3);
+            sphere.position = new Vector3(0, 1.5, -3);
         }
     }
 
