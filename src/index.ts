@@ -36,7 +36,9 @@ class Game
 
     private client: any;
     private user = "";
-    private password = "";
+
+    private black = "#070707";
+    private gray = "#808080";
 
     private gameState: State;
 
@@ -238,7 +240,6 @@ class Game
 
         // create login gui
         var guiPlane = MeshBuilder.CreatePlane("guiPlane", {}, this.scene);
-        guiPlane.isPickable = false;
         guiPlane.position = new Vector3(0, 1, 1);
 
         var guiTexture = AdvancedDynamicTexture.CreateForMesh(guiPlane, 1024, 1024);
@@ -248,7 +249,7 @@ class Game
         inputUser.height = "80px";
         inputUser.fontSize = 36;
         inputUser.color = "white";
-        inputUser.background = "#070707";
+        inputUser.background = this.black;
         guiTexture.addControl(inputUser);
         
         var inputPass = new InputPassword("inputPass");
@@ -257,7 +258,8 @@ class Game
         inputPass.height = "80px";
         inputPass.fontSize = 36;
         inputPass.color = "white";
-        inputPass.background = "#070707";
+        //inputPass.background = "#070707";
+        inputPass.background = this.gray;
         guiTexture.addControl(inputPass);
 
         var virtualKeyboard = VirtualKeyboard.CreateDefaultLayout("virtualKeyboard");
@@ -287,14 +289,18 @@ class Game
                     if (isUser) {
                         inputUser.processKey(13);
                         this.user = inputUser.text;
+                        inputUser.background = this.gray;
+                        inputPass.background = this.black;
                         isUser = false;
                     } else {
                         inputPass.processKey(13);
-                        this.password = inputPass.text;
+                        //this.password = inputPass.text;
+                        inputUser.background = this.black;
+                        inputPass.background = this.gray;
                         isUser = true;
 
                         // log user in
-                        this.connect(this.user, this.password);
+                        this.connect(this.user, inputPass.text);
                     }
 
                     break;
