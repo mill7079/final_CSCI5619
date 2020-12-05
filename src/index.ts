@@ -45,6 +45,12 @@ class Game
 
     private gameState: State;
 
+    private userPosition: Vector3 | null; 
+    private leftPosition: Vector3 | null;
+    private rightPosition: Vector3 | null;
+
+    private loginSuccess: Boolean | null; 
+
     constructor()
     {
         // Get the canvas element 
@@ -66,6 +72,11 @@ class Game
         this.rightHand.isPickable = false;
         this.rightHand.isVisible = false;
 
+        // set up positions 
+        this.userPosition = null; 
+        this.leftPosition = null; 
+        this.rightPosition = null; 
+
         // create client on server
         this.client = MATRIX.createClient("https://matrix.org");
 
@@ -76,6 +87,7 @@ class Game
         //console.log("domain " + this.client.getHomeserverUrl());
 
         this.gameState = new State();
+        this.loginSuccess = false; 
     }
 
     start() : void 
@@ -169,6 +181,115 @@ class Game
 
         this.scene.debugLayer.show();
 
+                // create login gui
+        //var guiPlane = MeshBuilder.CreatePlane("guiPlane", {}, this.scene);
+        this.guiPlane = MeshBuilder.CreatePlane("guiPlane", {}, this.scene);
+        this.guiPlane.position = new Vector3(0, 1, 1);
+
+        var guiTexture = AdvancedDynamicTexture.CreateForMesh(this.guiPlane, 1024, 1024);
+        var inputUser = new InputText("inputUser");
+        inputUser.top = -320;
+        inputUser.width = 1;
+        inputUser.height = "80px";
+        inputUser.fontSize = 36;
+        inputUser.color = "white";
+        inputUser.background = this.black;
+        guiTexture.addControl(inputUser);
+        
+        var inputPass = new InputPassword("inputPass");
+        inputPass.top = -240;
+        inputPass.width = 1;
+        inputPass.height = "80px";
+        inputPass.fontSize = 36;
+        inputPass.color = "white";
+        //inputPass.background = "#070707";
+        inputPass.background = this.gray;
+        guiTexture.addControl(inputPass);
+
+        // login status page for visual feedback
+        this.loginStatus = MeshBuilder.CreatePlane("loginStatus", {}, this.scene);
+        this.loginStatus.position = this.guiPlane.position.clone();
+        this.loginStatus.isPickable = false;
+        this.loginStatus.isVisible = false;
+
+        var loginMesh = AdvancedDynamicTexture.CreateForMesh(this.loginStatus, 512, 512);
+        loginMesh.background = this.black;
+
+        var loggingIn = new TextBlock();
+        loggingIn.text = "Logging in...";
+        loggingIn.color = "white";
+        loggingIn.fontSize = 64;
+        loggingIn.textHorizontalAlignment = TextBlock.HORIZONTAL_ALIGNMENT_CENTER;
+        loggingIn.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
+        loginMesh.addControl(loggingIn);
+
+        // keyboard to enter user/password
+        var virtualKeyboard = VirtualKeyboard.CreateDefaultLayout("virtualKeyboard");
+        virtualKeyboard.scaleX = 2.0;
+        virtualKeyboard.scaleY = 2.0;
+        guiTexture.addControl(virtualKeyboard);
+        var isUser = true;
+        virtualKeyboard.onKeyPressObservable.add((key) => {
+            switch (key) {
+                // Backspace
+                case '\u2190':
+                    if (isUser) {
+                        inputUser.processKey(8);
+                    } else {
+                        inputPass.processKey(8);
+                    }
+                    break;
+
+                // Shift
+                case '\u21E7':
+                    virtualKeyboard.shiftState = virtualKeyboard.shiftState == 0 ? 1 : 0;
+                    virtualKeyboard.applyShiftState(virtualKeyboard.shiftState);
+                    break;
+
+                // Enter
+                case '\u21B5':
+                    if (isUser) {
+                        inputUser.processKey(13);
+                        this.user = inputUser.text;
+                        inputUser.background = this.gray;
+                        inputPass.background = this.black;
+                        isUser = false;
+                    } else {
+                        inputPass.processKey(13);
+                        //this.password = inputPass.text;
+                        inputUser.background = this.black;
+                        inputPass.background = this.gray;
+                        isUser = true;
+
+                        // log user in
+                        this.loginStatus!.isVisible = true;
+                        console.log('attempting to log in .....');
+                        console.log(this.user, inputPass.text);
+                        this.connect(this.user, inputPass.text);
+                    }
+
+                    break;
+
+                default:
+                    if (isUser) {
+                        inputUser.processKey(-1, virtualKeyboard.shiftState == 0 ? key : key.toUpperCase());
+                    } else {
+                        inputPass.processKey(-1, virtualKeyboard.shiftState == 0 ? key : key.toUpperCase());
+                    }
+            }
+        });
+
+        if (!this.loginSuccess){
+            loginMesh.removeControl(loggingIn); 
+            var failedLogin = new TextBlock();
+            failedLogin.text = "Log in failed .. please reload";
+            failedLogin.color = "white";
+            failedLogin.fontSize = 32;
+            failedLogin.textHorizontalAlignment = TextBlock.HORIZONTAL_ALIGNMENT_CENTER;
+            failedLogin.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
+            loginMesh.addControl(failedLogin);
+        }
+
 
         // Matrix connection stuff
 
@@ -243,110 +364,24 @@ class Game
         //};
         //this.client.sendEvent("!FQlzwKdCBFuEnQusdk:matrix.org", "m.room.message", message, "");
 
-
-        // create login gui
-        //var guiPlane = MeshBuilder.CreatePlane("guiPlane", {}, this.scene);
-        this.guiPlane = MeshBuilder.CreatePlane("guiPlane", {}, this.scene);
-        this.guiPlane.position = new Vector3(0, 1, 1);
-
-        var guiTexture = AdvancedDynamicTexture.CreateForMesh(this.guiPlane, 1024, 1024);
-        var inputUser = new InputText("inputUser");
-        inputUser.top = -320;
-        inputUser.width = 1;
-        inputUser.height = "80px";
-        inputUser.fontSize = 36;
-        inputUser.color = "white";
-        inputUser.background = this.black;
-        guiTexture.addControl(inputUser);
-        
-        var inputPass = new InputPassword("inputPass");
-        inputPass.top = -240;
-        inputPass.width = 1;
-        inputPass.height = "80px";
-        inputPass.fontSize = 36;
-        inputPass.color = "white";
-        //inputPass.background = "#070707";
-        inputPass.background = this.gray;
-        guiTexture.addControl(inputPass);
-
-        // login status page for visual feedback
-        this.loginStatus = MeshBuilder.CreatePlane("loginStatus", {}, this.scene);
-        this.loginStatus.position = this.guiPlane.position.clone();
-        this.loginStatus.isPickable = false;
-        this.loginStatus.isVisible = false;
-
-        var loginMesh = AdvancedDynamicTexture.CreateForMesh(this.loginStatus, 512, 512);
-        loginMesh.background = this.black";
-
-        var loggingIn = new TextBlock();
-        loggingIn.text = "Logging in...";
-        loggingIn.color = "white";
-        loggingIn.fontSize = 64;
-        loggingIn.textHorizontalAlignment = TextBlock.HORIZONTAL_ALIGNMENT_CENTER;
-        loggingIn.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
-        loginMesh.addControl(loggingIn);
-
-        // keyboard to enter user/password
-        var virtualKeyboard = VirtualKeyboard.CreateDefaultLayout("virtualKeyboard");
-        virtualKeyboard.scaleX = 2.0;
-        virtualKeyboard.scaleY = 2.0;
-        guiTexture.addControl(virtualKeyboard);
-        var isUser = true;
-        virtualKeyboard.onKeyPressObservable.add((key) => {
-            switch (key) {
-                // Backspace
-                case '\u2190':
-                    if (isUser) {
-                        inputUser.processKey(8);
-                    } else {
-                        inputPass.processKey(8);
-                    }
-                    break;
-
-                // Shift
-                case '\u21E7':
-                    virtualKeyboard.shiftState = virtualKeyboard.shiftState == 0 ? 1 : 0;
-                    virtualKeyboard.applyShiftState(virtualKeyboard.shiftState);
-                    break;
-
-                // Enter
-                case '\u21B5':
-                    if (isUser) {
-                        inputUser.processKey(13);
-                        this.user = inputUser.text;
-                        inputUser.background = this.gray;
-                        inputPass.background = this.black;
-                        isUser = false;
-                    } else {
-                        inputPass.processKey(13);
-                        //this.password = inputPass.text;
-                        inputUser.background = this.black;
-                        inputPass.background = this.gray;
-                        isUser = true;
-
-                        // log user in
-                        this.loginStatus!.isVisible = true;
-                        this.connect(this.user, inputPass.text);
-                    }
-
-                    break;
-
-                default:
-                    if (isUser) {
-                        inputUser.processKey(-1, virtualKeyboard.shiftState == 0 ? key : key.toUpperCase());
-                    } else {
-                        inputPass.processKey(-1, virtualKeyboard.shiftState == 0 ? key : key.toUpperCase());
-                    }
-            }
-        });
-
     }
+
+    private createLoginGUI(){
+    }
+
 
     // The main update loop will be executed once per frame before the scene is rendered
     private update() : void
     {
-
-
+        if (this.xrCamera){
+        this.userPosition = this.xrCamera!.globalPosition.clone(); 
+        }
+        if (this.rightController){
+        this.rightPosition = this.rightController!.pointer.position.clone(); 
+        }
+        if (this.leftController){
+        this.leftPosition = this.leftController!.pointer.position.clone(); 
+        }
 
     }
 
@@ -354,6 +389,7 @@ class Game
     // creates a cube if the message was 'cube' and a sphere if message was 'sphere'
     // mostly just testing things at this point, the real thing is going to be way more complicated
     private updateEnv(message: string) {
+
         console.log("update found: " + message);
         if (message == "cube") {
             console.log("create a cube!");
@@ -364,18 +400,44 @@ class Game
             var sphere = MeshBuilder.CreateSphere("sphere", { diameter: 1 }, this.scene);
             sphere.position = new Vector3(0, 1.5, -3);
         }
+
+        else if (message.startsWith("user")){
+            console.log('this is the message that will be used to update environemt'); 
+            console.log(message); 
+        }
     }
 
     private async connect(user: string, pass: string) {
         // login
         await this.client.login("m.login.password", { user: user, password: pass }).then((response: any) => {
             console.log("logged in!");
+
+            var user_array = []
+            user_array.push(this.leftPosition);
+            user_array.push(this.rightPosition); 
+            user_array.push(this.userPosition); 
+
+            // add user info to chat to update other info 
+            const user_info = {
+                "body": "user " + user + " user_array: " + user_array,
+                "msgtype": "m.text"
+            };
+            this.client.sendEvent("!FQlzwKdCBFuEnQusdk:matrix.org", "m.room.message", user_info, "", (err:any, res:any) => {
+                console.log(err);
+            });
+
+            this.loginSuccess = true; 
+
+
         }).catch((err: any) => {
             console.log("error logging in user " + user);
+            this.loginSuccess = false; 
             return;
         });
 
-        this.guiPlane?.dispose(false, true);
+        if (this.guiPlane){
+        this.guiPlane!.dispose(false, true);
+        }
 
         // start client
         await this.client.startClient({ initialSyncLimit: 10 });
@@ -399,8 +461,17 @@ class Game
                 this.updateEnv(event.event.content.body);
             }
         });
-    }
 
+        // add message sender 
+        const content = {
+            "body": user + " has been added",
+            "msgtype": "m.text"
+        };
+
+        this.client.sendEvent("!FQlzwKdCBFuEnQusdk:matrix.org", "m.room.message", content, "", (err:any, res:any) => {
+            console.log(err);
+        });
+    }
 }
 /******* End of the Game class ******/
 
@@ -412,7 +483,6 @@ class State {
     //private users: Vector3[][]; // list of users in terms of position (headset/left/right)
     //private objects: AbstractMesh[] = []; // list of environment objects (shape/options/position...etc?)
     constructor() {
-
     }
 
     public toString() : string {
