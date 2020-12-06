@@ -37,6 +37,7 @@ class Game
 
     private client: any;
     private user = "";
+    private room = "!FQlzwKdCBFuEnQusdk:matrix.org";
 
     private guiPlane: AbstractMesh | null;
     private loginStatus: AbstractMesh | null;
@@ -49,7 +50,7 @@ class Game
     private leftPosition: Vector3 | null;
     private rightPosition: Vector3 | null;
 
-    private loginSuccess: Boolean | null; 
+    private failedLogin: TextBlock | null;
 
     constructor()
     {
@@ -82,12 +83,12 @@ class Game
 
         this.guiPlane = null;
         this.loginStatus = null;
+        this.failedLogin = null;
 
         // debugging
         //console.log("domain " + this.client.getHomeserverUrl());
 
         this.gameState = new State();
-        this.loginSuccess = false; 
     }
 
     start() : void 
@@ -179,7 +180,7 @@ class Game
             }
         });
 
-        this.scene.debugLayer.show();
+        //this.scene.debugLayer.show();
 
                 // create login gui
         //var guiPlane = MeshBuilder.CreatePlane("guiPlane", {}, this.scene);
@@ -223,6 +224,19 @@ class Game
         loggingIn.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
         loginMesh.addControl(loggingIn);
 
+        // login failed notification for more visual feedback
+        this.failedLogin = new TextBlock();
+        this.failedLogin.height = "240px";
+        this.failedLogin.text = "Log in failed.\n Please re-enter username and/or password.";
+        this.failedLogin.color = "white";
+        this.failedLogin.fontSize = 42;
+        this.failedLogin.top = -420;
+        this.failedLogin.textHorizontalAlignment = TextBlock.HORIZONTAL_ALIGNMENT_CENTER;
+        this.failedLogin.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
+        guiTexture.addControl(this.failedLogin);
+        this.failedLogin.isVisible = false;
+
+
         // keyboard to enter user/password
         var virtualKeyboard = VirtualKeyboard.CreateDefaultLayout("virtualKeyboard");
         virtualKeyboard.scaleX = 2.0;
@@ -253,6 +267,7 @@ class Game
                         this.user = inputUser.text;
                         inputUser.background = this.gray;
                         inputPass.background = this.black;
+                        inputPass.text = "";
                         isUser = false;
                     } else {
                         inputPass.processKey(13);
@@ -264,7 +279,6 @@ class Game
                         // log user in
                         this.loginStatus!.isVisible = true;
                         console.log('attempting to log in .....');
-                        console.log(this.user, inputPass.text);
                         this.connect(this.user, inputPass.text);
                     }
 
@@ -278,80 +292,6 @@ class Game
                     }
             }
         });
-
-        if (!this.loginSuccess){
-            loginMesh.removeControl(loggingIn); 
-            var failedLogin = new TextBlock();
-            failedLogin.text = "Log in failed .. please reload";
-            failedLogin.color = "white";
-            failedLogin.fontSize = 32;
-            failedLogin.textHorizontalAlignment = TextBlock.HORIZONTAL_ALIGNMENT_CENTER;
-            failedLogin.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
-            loginMesh.addControl(failedLogin);
-        }
-
-
-        // Matrix connection stuff
-
-        // debugging
-        //await this.client.publicRooms(function (err: any, data: any) {
-        //    if (err) {
-        //        console.error("err %s", JSON.stringify(err));
-        //        //return;
-        //    }
-        //    console.log("Public Rooms: %s", JSON.stringify(data));
-        //});
-
-
-
-        // the following is theoretically done by the connect function now
-
-        ////log in
-        //await this.client.login("m.login.password", { user: this.user, password: this.password }).then((response: any) => {
-        //    console.log("logged in!");
-        //    //console.log("access token : " + response.access_token);
-        //});
-
-        //// start client
-        //await this.client.startClient({ initialSyncLimit: 10 });
-
-        // sync client
-        // source of many errors - if you need to do something that requires the client to be synced, just put the code in the callback
-        // no idea how to wait for it to finish so it's always the last thing to print
-        //var c = this.client;
-        //await this.client.once('sync', function (state: any, prevState: any, res: any) {
-        //    console.log("prev state: " + prevState);
-        //    console.log("state: " + state); // state will be 'PREPARED' when the client is ready to use
-
-        //    //var room = c.getRoom("!FQlzwKdCBFuEnQusdk:matrix.org");
-        //    //if (room) {
-        //    //    console.log("roomy room: " + room.name);
-        //    //}
-        //    //else {
-        //    //    console.log("not synced");
-        //    //}
-        //    //console.log("get sync state: " + c.getSyncState());
-
-        //    //Object.keys(c.store.rooms).forEach((roomId: string) => {
-        //    //    c.getRoom(roomId).timeline.forEach((t: any) => {
-        //    //        //console.log(t.event);
-        //    //        console.log(t.getContent());
-        //    //    });
-        //    //});
-        //});
-
-        // add an event listener to get past messages and listen for new ones
-        // using 'this' only works in this specific formatting (with the arrow function) because javascript sucks
-        // beware: will get all messages from all rooms you've joined 
-        //this.client.on("Room.timeline", (event:any, room:any, toStartOfTimeline:any) => {
-        //    console.log(event.event.content.body);
-
-        //    // send messages to function to check if it's an update message
-        //    if (event.event.type == 'm.room.message') {
-        //        this.updateEnv(event.event.content.body);
-        //    }
-        //});
-
 
 
 
@@ -390,7 +330,7 @@ class Game
     // mostly just testing things at this point, the real thing is going to be way more complicated
     private updateEnv(message: string) {
 
-        console.log("update found: " + message);
+        //console.log("update found: " + message);
         if (message == "cube") {
             console.log("create a cube!");
             var cube = MeshBuilder.CreateBox("cube", { size: 1 }, this.scene);
@@ -402,7 +342,7 @@ class Game
         }
 
         else if (message.startsWith("user")){
-            console.log('this is the message that will be used to update environemt'); 
+            console.log('this is the message that will be used to update environment'); 
             console.log(message); 
         }
     }
@@ -422,43 +362,45 @@ class Game
                 "body": "user " + user + " user_array: " + user_array,
                 "msgtype": "m.text"
             };
-            this.client.sendEvent("!FQlzwKdCBFuEnQusdk:matrix.org", "m.room.message", user_info, "", (err:any, res:any) => {
+            this.client.sendEvent(this.room, "m.room.message", user_info, "", (err:any, res:any) => {
                 console.log(err);
             });
 
-            this.loginSuccess = true; 
-
-
         }).catch((err: any) => {
             console.log("error logging in user " + user);
-            this.loginSuccess = false; 
-            return;
+            this.loginStatus!.isVisible = false;
+            this.failedLogin!.isVisible = true;
         });
 
+        // avoid attempting connnection if not logged in
+        if (!this.loginStatus!.isVisible) {
+            return;
+        }
+
+        // if logged in, dispose of login GUI
         if (this.guiPlane){
-        this.guiPlane!.dispose(false, true);
+            this.guiPlane!.dispose(false, true);
         }
 
         // start client
         await this.client.startClient({ initialSyncLimit: 10 });
 
         // sync client - hopefully finishes before sync is needed
-        //await this.client.once('sync', function (state: any, prevState: any, res: any) {
-        //    console.log("client state: " + state); // state will be 'PREPARED' when the client is ready to use
-            
-        //});
         await this.client.once('sync', (state: any, prevState: any, res: any) => {
             console.log("client state: " + state); // state will be 'PREPARED' when the client is ready to use
             this.loginStatus!.dispose(false, true);
         });
 
-        // add message listener
+        // add message listener to room - don't listen to messages in other rooms
         this.client.on("Room.timeline", (event: any, room: any, toStartOfTimeline: any) => {
-            //console.log(event.event.content.body);
+            if (room.roomId == this.room) {
+                //console.log(event.event.content.body);
+                //console.log("room: " + room.roomId);
 
-            // send messages to function to check if it's an update message
-            if (event.event.type == 'm.room.message') {
-                this.updateEnv(event.event.content.body);
+                // send messages to function to check if it's an update message
+                if (event.event.type == 'm.room.message') {
+                    this.updateEnv(event.event.content.body);
+                }
             }
         });
 
@@ -468,7 +410,7 @@ class Game
             "msgtype": "m.text"
         };
 
-        this.client.sendEvent("!FQlzwKdCBFuEnQusdk:matrix.org", "m.room.message", content, "", (err:any, res:any) => {
+        this.client.sendEvent(this.room, "m.room.message", content, "", (err:any, res:any) => {
             console.log(err);
         });
     }
@@ -487,6 +429,42 @@ class State {
 
     public toString() : string {
         return "";
+    }
+}
+
+// user class - possible way to represent users
+class User {
+
+    // username
+    private user: string;
+
+    // visualize headset and controllers 
+    private head: AbstractMesh;
+    private left: AbstractMesh;
+    private right: AbstractMesh;
+
+    constructor(user: string, head: Vector3, headRotation: Vector3, left: Vector3, right: Vector3) {
+        this.user = user;
+        this.head = MeshBuilder.CreateBox((user + "_head"), { size: 0.3 });
+        this.head.position = head;
+        this.head.rotation = headRotation;
+        this.left = MeshBuilder.CreateSphere((user + "_left"), { segments: 16, diameter: 0.1 });
+        this.left.position = left;
+        this.right = MeshBuilder.CreateSphere((user + "_right"), { segments: 16, diameter: 0.1 });
+        this.right.position = right;
+    }
+
+    public move(head: Vector3, headRotation: Vector3, left: Vector3, right: Vector3) {
+        this.head.position = head;
+        this.head.rotation = headRotation;
+        this.left.position = left;
+        this.right.position = right;
+    }
+
+    public remove() {
+        this.head.dispose();
+        this.left.dispose();
+        this.right.dispose();
     }
 }
 
