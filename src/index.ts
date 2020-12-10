@@ -17,11 +17,21 @@ import { AdvancedDynamicTexture } from "@babylonjs/gui/2D/advancedDynamicTexture
 import { InputPassword, InputText } from "@babylonjs/gui/2D/controls";
 import { VirtualKeyboard } from "@babylonjs/gui/2D/controls/virtualKeyboard";
 import { TextBlock } from "@babylonjs/gui/2D/controls/textBlock";
-import * as MATRIX from "matrix-js-sdk"
+import { SceneSerializer } from "@babylonjs/core/Misc/sceneSerializer";
+import * as MATRIX from "matrix-js-sdk";
 
 // Side effects
 import "@babylonjs/core/Helpers/sceneHelpers";
 import "@babylonjs/inspector";
+import { Mesh } from "@babylonjs/core/Meshes/mesh";
+
+module Messages {
+    export var client = MATRIX.createClient("https://matrix.org");
+
+    //export function client() {
+    //    return client;
+    //}
+}
 
 class Game 
 { 
@@ -49,6 +59,7 @@ class Game
     private userPosition: Vector3 | null; 
     private leftPosition: Vector3 | null;
     private rightPosition: Vector3 | null;
+    private userObj: User | null = null;
 
     private failedLogin: TextBlock | null;
 
@@ -66,8 +77,8 @@ class Game
         this.xrCamera = null;
         this.leftController = null;
         this.rightController = null;
-        this.leftHand = MeshBuilder.CreateSphere("leftHand", { diameter: 0.1 }, this.scene);
-        this.rightHand = MeshBuilder.CreateSphere("rightHand", { diameter: 0.1 }, this.scene);
+        this.leftHand = MeshBuilder.CreateSphere("leftHand", { segments: 16, diameter: 0.1 }, this.scene);
+        this.rightHand = MeshBuilder.CreateSphere("rightHand", { segments: 16, diameter: 0.1 }, this.scene);
         this.leftHand.isPickable = false;
         this.leftHand.isVisible = false;
         this.rightHand.isPickable = false;
@@ -79,7 +90,8 @@ class Game
         this.rightPosition = null; 
 
         // create client on server
-        this.client = MATRIX.createClient("https://matrix.org");
+        //this.client = MATRIX.createClient("https://matrix.org");
+        this.client = Messages.client;
 
         this.guiPlane = null;
         this.loginStatus = null;
@@ -165,7 +177,10 @@ class Game
                 this.leftController = inputSource;
                 this.leftHand.parent = this.leftController.grip!;
                 this.leftHand.isVisible = true;
-            }  
+            }
+
+            this.userObj?.move(this.xrCamera!.position, this.xrCamera!.rotation, this.leftHand.absolutePosition, this.rightHand.absolutePosition);
+
         });
 
         // Don't forget to deparent objects from the controllers or they will be destroyed!
@@ -182,8 +197,7 @@ class Game
 
         //this.scene.debugLayer.show();
 
-                // create login gui
-        //var guiPlane = MeshBuilder.CreatePlane("guiPlane", {}, this.scene);
+        // create login gui
         this.guiPlane = MeshBuilder.CreatePlane("guiPlane", {}, this.scene);
         this.guiPlane.position = new Vector3(0, 1, 1);
 
@@ -293,6 +307,33 @@ class Game
             }
         });
 
+        //var userTest = new User("mill7079", new Vector3(1, 2, 3), new Vector3(0, 0, 0), new Vector3(0, 0.5, 3), new Vector3(2, 0.5, 3));
+        //console.log("*!*!*!*!*!*!*!*!*STRINGIFICATION: " + JSON.stringify(BABYLON.SceneSerializer.Serialize(this.scene)));
+
+        //console.log("*!*!*!*!*!*!*!*!*STRINGIFICATION: " + JSON.stringify(BABYLON.SceneSerializer.SerializeMesh(this.leftHand)));
+        //JSON.stringify(BABYLON.SceneSerializer.SerializeMesh(this.leftHand));
+        //var testVec = new Vector3(1, 2, 3);
+        ////console.log("stringify: " + JSON.stringify(testVec));
+        //console.log("parse: " + (<Vector3>JSON.parse(JSON.stringify(testVec))));
+        //var textVec2: Vector3 = JSON.parse(JSON.stringify(testVec));
+        //console.log("textvec2: " + textVec2._x);
+        //console.log("keys: " + Object.keys(textVec2));
+
+        //var cube = MeshBuilder.CreateBox("cube", { size: 1 }, this.scene);
+        //console.log("stringify cube: " + JSON.stringify(BABYLON.SceneSerializer.SerializeMesh(cube)));
+        //console.log("unstringify cube: " + JSON.parse(JSON.stringify(BABYLON.SceneSerializer.SerializeMesh(cube))).name);
+
+        //var obj = {
+        //    propA: 1,
+        //    propB: "hello",
+        //    propC: new Vector3(4, 5, 6)
+        //};
+
+        //console.log("obj: " + obj);
+        //var pso = JSON.parse(JSON.stringify(obj));
+        //console.log("stringify obj: " + JSON.stringify(obj));
+        //console.log("parse string obj: " + JSON.parse(JSON.stringify(obj)));
+        //console.log("prop A + 1: " + ((+pso.propA) + 1));
 
 
 
@@ -304,9 +345,6 @@ class Game
         //};
         //this.client.sendEvent("!FQlzwKdCBFuEnQusdk:matrix.org", "m.room.message", message, "");
 
-    }
-
-    private createLoginGUI(){
     }
 
 
@@ -333,7 +371,7 @@ class Game
         //console.log("update found: " + message);
         if (message == "cube") {
             console.log("create a cube!");
-            var cube = MeshBuilder.CreateBox("cube", { size: 1 }, this.scene);
+            var cube = MeshBuilder.CreateBox("cube", { "size": 1 }, this.scene);
             cube.position = new Vector3(3, 1.5, 0);
         } else if (message == "sphere") {
             console.log("create a sphere!");
@@ -389,6 +427,10 @@ class Game
         await this.client.once('sync', (state: any, prevState: any, res: any) => {
             console.log("client state: " + state); // state will be 'PREPARED' when the client is ready to use
             this.loginStatus!.dispose(false, true);
+
+            // create self user object
+            //this.userObj = new User(this.user);
+            console.log("head pos: " + this.xrCamera?.position + " left controller: " + this.leftController + " right controller: " + this.rightController);
         });
 
         // add message listener to room - don't listen to messages in other rooms
@@ -404,15 +446,18 @@ class Game
             }
         });
 
-        // add message sender 
-        const content = {
-            "body": user + " has been added",
-            "msgtype": "m.text"
-        };
+        //Messages.setClient(this.client);
+        //Messages.getClient();
 
-        this.client.sendEvent(this.room, "m.room.message", content, "", (err:any, res:any) => {
-            console.log(err);
-        });
+        // add message sender 
+        //const content = {
+        //    "body": user + " has been added",
+        //    "msgtype": "m.text"
+        //};
+
+        //this.client.sendEvent(this.room, "m.room.message", content, "", (err:any, res:any) => {
+        //    console.log(err);
+        //});
     }
 }
 /******* End of the Game class ******/
@@ -437,14 +482,19 @@ class User {
 
     // username
     private user: string;
+    private client: any;
+    private room: any;
 
     // visualize headset and controllers 
     private head: AbstractMesh;
     private left: AbstractMesh;
     private right: AbstractMesh;
 
-    constructor(user: string, head: Vector3, headRotation: Vector3, left: Vector3, right: Vector3) {
+
+    constructor(user: string, client: any, head: Vector3 = new Vector3(0, 0, 0), headRotation: Vector3 = new Vector3(0, 0, 0),
+                                            left: Vector3 = new Vector3(0, 0, 0), right: Vector3 = new Vector3(0, 0, 0)) {
         this.user = user;
+        this.client = client;
         this.head = MeshBuilder.CreateBox((user + "_head"), { size: 0.3 });
         this.head.position = head;
         this.head.rotation = headRotation;
@@ -459,6 +509,14 @@ class User {
         this.head.rotation = headRotation;
         this.left.position = left;
         this.right.position = right;
+
+        var content = {
+            type: "update",
+            content: JSON.stringify(this.toString())
+        };
+        this.client.sendEvent(this.room, "m.room.message", content, "", (err: any, res: any) => {
+            console.log(err);
+        });
     }
 
     public remove() {
@@ -466,7 +524,37 @@ class User {
         this.left.dispose();
         this.right.dispose();
     }
+
+    // return JSON string
+    public toString() {
+        var ret = {
+            user: this.user,
+            hpos: this.head.position.clone(),
+            hrot: this.head.rotation.clone(),
+            lpos: this.left.position.clone(),
+            rpos: this.left.position.clone()
+        };
+
+        return ret;
+    }
 }
+
+
+//class Item {
+
+//    private id: string;
+//    private mesh: AbstractMesh;
+
+//    // pass in ID and options for meshbuilder
+//    constructor(id: string, opts: string) {
+//        this.id = id;
+//        var type = id.split("_")[0];
+//        switch (type) {
+//            case "box":
+//                this.mesh = MeshBuilder.CreateBox(id, )
+//        }
+//    }
+//}
 
 
 // start the game
