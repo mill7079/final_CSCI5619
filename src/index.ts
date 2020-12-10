@@ -332,13 +332,13 @@ class Game
         //console.log("textvec2: " + textVec2._x);
         //console.log("keys: " + Object.keys(textVec2));
 
-        var cube = MeshBuilder.CreateBox("cube", { size: 1 }, this.scene);
-        cube.position = new Vector3(1, 8, 1);
-        var stringified = JSON.stringify(SceneSerializer.SerializeMesh(cube));
-        //console.log("stringify cube: " + JSON.stringify(SceneSerializer.SerializeMesh(cube)));
-        SceneLoader.ImportMesh("", "", ("data:" + stringified), this.scene);
-        var cubeParse = JSON.parse(JSON.stringify(SceneSerializer.SerializeMesh(cube)));
-        console.log(Object.getOwnPropertyNames(cubeParse));
+        //var cube = MeshBuilder.CreateBox("cube", { size: 1 }, this.scene);
+        //cube.position = new Vector3(1, 8, 1);
+        //var stringified = JSON.stringify(SceneSerializer.SerializeMesh(cube));
+        ////console.log("stringify cube: " + JSON.stringify(SceneSerializer.SerializeMesh(cube)));
+        //SceneLoader.ImportMesh("", "", ("data:" + stringified), this.scene);
+        //var cubeParse = JSON.parse(JSON.stringify(SceneSerializer.SerializeMesh(cube)));
+        //console.log(Object.getOwnPropertyNames(cubeParse));
 
 
         //var obj = {
