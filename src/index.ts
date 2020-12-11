@@ -419,28 +419,37 @@ class Game
     // mostly just testing things at this point, the real thing is going to be way more complicated
     private updateEnv(message: string) {
         console.log("message: " + message);
-        var msg = JSON.parse(message);
-        var msgInfo = JSON.parse(msg.info);
-        switch (msg.status) {
-            case "create":
-                switch (msg.type) {
-                    case "box":
-                        var newMesh = MeshBuilder.CreateBox(msg.id, JSON.parse(msgInfo.opts), this.scene);
-                        newMesh.position = Object.assign(newMesh.position, msgInfo.position);
-                        newMesh.rotation = Object.assign(newMesh.rotation, msgInfo.rotation);
-                        this.envObjects.set(msg.id, newMesh);
-                        break;
-                    case "sphere":
-                        break;
-                    default:
-                        console.log("shape not matched");
-                }
-                break;
-            case "update":
-                break;
-            case "remove":
-                break;
+        if (message) {
+            message = message.trim()
+            var msg = JSON.parse(message);
+            if (msg.info){
+            // msg.info = msg.info.trim()
+            var msgInfo = msg.info;
+
+            switch (msg.status) {
+                case "create":
+                    switch (msg.type) {
+                        case "box":
+                            var newMesh = MeshBuilder.CreateBox(msg.id, msgInfo.opts, this.scene); // was JSON.parse(msgInfo.opts)
+                            newMesh.position = Object.assign(newMesh.position, msgInfo.position);
+                            newMesh.rotation = Object.assign(newMesh.rotation, msgInfo.rotation);
+                            this.envObjects.set(msg.id, newMesh);
+                            break;
+                        case "sphere":
+                            break;
+                        default:
+                            console.log("shape not matched");
+                    }
+                    break;
+                case "update":
+                    break;
+                case "remove":
+                    break;
+            }
         }
+    }
+        
+
 
         ////console.log("update found: " + message);
         //if (message == "cube") {
@@ -517,17 +526,24 @@ class Game
                 if (event.event.type == 'm.room.message') {
                     this.updateEnv(event.event.content.body);
                     console.log("body: " + event.event.content.body);
+                    if (event.event.content.body){
+                    event.event.content.body = event.event.content.body.trim()
                     var body = JSON.parse(event.event.content.body);
-
+                    console.log('body ----------------' + body); 
+                  
                     if (body.status == "update") {
+                        
                         console.log("update type, print content: " + body.content);
-                        var obj = JSON.parse(body.content);
+                        // body.content = body.content.trim()
+                        //  var obj = JSON.parse(body.content);
+                        var obj = body.content
                         console.log("print user: " + obj.id);
                         console.log("print hpos: " + obj.hpos);
                     }
                 }
             }
-        });
+        }}
+        );
 
         //Messages.setClient(this.client);
         //Messages.getClient();
