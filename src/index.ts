@@ -20,6 +20,7 @@ import { TextBlock } from "@babylonjs/gui/2D/controls/textBlock";
 import { SceneSerializer } from "@babylonjs/core/Misc/sceneSerializer";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
+import { PointerEventTypes, PointerInfo } from "@babylonjs/core/Events/pointerEvents";
 
 import * as MATRIX from "matrix-js-sdk";
 
@@ -55,6 +56,7 @@ class Game
     private rightController: WebXRInputSource | null;
     private leftHand: AbstractMesh;
     private rightHand: AbstractMesh;
+    private selectedObject: AbstractMesh | null;
 
     private client: any;
     private user = "";
@@ -96,6 +98,7 @@ class Game
         this.leftHand.isVisible = false;
         this.rightHand.isPickable = false;
         this.rightHand.isVisible = false;
+        this.selectedObject = null;
 
         // set up positions 
         this.userPosition = null; 
@@ -318,51 +321,17 @@ class Game
             }
         });
 
-        //var userTest = new User("mill7079", new Vector3(1, 2, 3), new Vector3(0, 0, 0), new Vector3(0, 0.5, 3), new Vector3(2, 0.5, 3));
-        //console.log("*!*!*!*!*!*!*!*!*STRINGIFICATION: " + JSON.stringify(BABYLON.SceneSerializer.Serialize(this.scene)));
-
-        //console.log("*!*!*!*!*!*!*!*!*STRINGIFICATION: " + JSON.stringify(BABYLON.SceneSerializer.SerializeMesh(this.leftHand)));
-        //JSON.stringify(BABYLON.SceneSerializer.SerializeMesh(this.leftHand));
-        //var testVec = new Vector3(1, 2, 3);
-        ////console.log("stringify: " + JSON.stringify(testVec));
-        //console.log("parse: " + (<Vector3>JSON.parse(JSON.stringify(testVec))));
-        //var textVec2: Vector3 = JSON.parse(JSON.stringify(testVec));
-        //console.log("textvec2: " + textVec2._x);
-        //console.log("keys: " + Object.keys(textVec2));
-
-        //var cube = MeshBuilder.CreateBox("cube", { size: 1 }, this.scene);
-        //cube.position = new Vector3(1, 8, 1);
-        //var stringified = JSON.stringify(SceneSerializer.SerializeMesh(cube));
-        ////console.log("stringify cube: " + JSON.stringify(SceneSerializer.SerializeMesh(cube)));
-        //SceneLoader.ImportMesh("", "", ("data:" + stringified), this.scene);
-        //var cubeParse = JSON.parse(JSON.stringify(SceneSerializer.SerializeMesh(cube)));
-        //console.log(Object.getOwnPropertyNames(cubeParse));
-
-
-        //var obj = {
-        //    propA: 1,
-        //    propB: "hello",
-        //    propC: new Vector3(4, 5, 6)
-        //};
-
-        ////console.log("obj: " + obj);
-        //var pso = JSON.parse(JSON.stringify(obj));
-        //console.log("stringify obj: " + JSON.stringify(obj));
-        //console.log("parse string obj: " + JSON.parse(JSON.stringify(obj)));
-        ////console.log("prop A + 1: " + ((+pso.propA) + 1));
-
-        //var x: Vector3 = Object.assign(new Vector3(), pso.propC);
-        //console.log("obj assign to vector: " + (x instanceof Vector3));
-
-
-
-
         // send a message
         //var message = {
         //    body: "hello",
         //    msgtype: "m.text"
         //};
         //this.client.sendEvent("!FQlzwKdCBFuEnQusdk:matrix.org", "m.room.message", message, "");
+
+        // enable pointer selection/deselection 
+        this.scene.onPointerObservable.add((pointerInfo) => {
+            this.processPointer(pointerInfo);
+        });
 
     }
 
@@ -409,6 +378,22 @@ class Game
 
                 Messages.sendMessage(false, JSON.stringify(message));
             }
+        }
+    }
+
+    // object manipulation
+    private processPointer(pointerInfo: PointerInfo) {
+        switch (pointerInfo.type) {
+            case PointerEventTypes.POINTERDOWN:
+                if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo.pickedMesh?.name != "guiPlane") {
+                    this.selectedObject = pointerInfo.pickInfo.pickedMesh;
+                    this.selectedObject?.setParent(this.rightHand);
+                }
+                break;
+            case PointerEventTypes.POINTERUP:
+                this.selectedObject?.setParent(null);
+                this.selectedObject = null;
+                break;
         }
     }
 
@@ -635,20 +620,6 @@ class User {
     private left: AbstractMesh;
     private right: AbstractMesh;
 
-    //constructor(user: string, head: Vector3 = new Vector3(0, 0, 0), headRotation: Vector3 = new Vector3(0, 0, 0),
-    //                                        left: Vector3 = new Vector3(0, 0, 0), right: Vector3 = new Vector3(0, 0, 0)) {
-    //    this.user = user;
-    //    this.head = MeshBuilder.CreateBox((user + "_head"), { size: 0.3 });
-    //    this.head.position = head;
-    //    this.head.rotation = headRotation;
-    //    this.left = MeshBuilder.CreateSphere((user + "_left"), { segments: 16, diameter: 0.1 });
-    //    this.left.position = left;
-    //    this.right = MeshBuilder.CreateSphere((user + "_right"), { segments: 16, diameter: 0.1 });
-    //    this.right.position = right;
-
-    //    this.move(head, headRotation, left, right);
-    //}
-
     // takes in user ID and JSON object with position info 
     constructor(id: string, info: any) {
         this.user = id;
@@ -659,20 +630,7 @@ class User {
         this.update(info);
     }
 
-    //public move(head: Vector3, headRotation: Vector3, left: Vector3, right: Vector3) {
-    //    this.head.position = head;
-    //    this.head.rotation = headRotation;
-    //    this.left.position = left;
-    //    this.right.position = right;
-
-    //    var content = {
-    //        type: "update",
-    //        content: this.toString()
-    //    };
-
-    //    Messages.sendMessage(false, JSON.stringify(content));
-    //}
-
+    // removes this user from the room
     public remove() {
         this.head.dispose();
         this.left.dispose();
