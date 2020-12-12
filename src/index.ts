@@ -1,7 +1,6 @@
 /* CSCI 5619 Final, Fall 2020
- * Author: Evan Suma Rosenberg
- * License: Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International
- */ 
+ * Authors: Angel Sylvester and Allison Miller
+ * */ 
 
 import { Engine } from "@babylonjs/core/Engines/engine"; 
 import { Scene } from "@babylonjs/core/scene";
@@ -230,7 +229,6 @@ class Game
         inputPass.height = "80px";
         inputPass.fontSize = 36;
         inputPass.color = "white";
-        //inputPass.background = "#070707";
         inputPass.background = this.gray;
         guiTexture.addControl(inputPass);
 
@@ -430,7 +428,7 @@ class Game
                 case "create":
                     switch (msg.type) {
                         case "box":
-                            var newMesh = MeshBuilder.CreateBox(msg.id, msgInfo.opts, this.scene); // was JSON.parse(msgInfo.opts)
+                            var newMesh = MeshBuilder.CreateBox(msg.id, msgInfo.opts, this.scene); // was JSON.parse(msgInfo.opts) 
                             newMesh.position = Object.assign(newMesh.position, msgInfo.position);
                             newMesh.rotation = Object.assign(newMesh.rotation, msgInfo.rotation);
                             this.envObjects.set(msg.id, newMesh);
@@ -486,7 +484,9 @@ class Game
             //this.client.sendEvent(this.room, "m.room.message", user_info, "", (err:any, res:any) => {
             //    console.log(err);
             //});
-
+            this.client.joinRoom(this.room).then((response: any) => {
+                console.log("user joined room");
+            });
         }).catch((err: any) => {
             console.log("error logging in user " + user);
             this.loginStatus!.isVisible = false;
@@ -542,8 +542,7 @@ class Game
                     }
                 }
             }
-        }}
-        );
+        }});
 
         //Messages.setClient(this.client);
         //Messages.getClient();
