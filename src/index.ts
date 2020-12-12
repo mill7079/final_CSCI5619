@@ -350,6 +350,10 @@ class Game
         //}
 
         this.processControllerInput();
+
+        if (this.selectedObject) {
+            Messages.sendMessage(false, this.createUpdate(this.selectedObject.name));
+        }
     }
 
     private processControllerInput() {
@@ -397,6 +401,36 @@ class Game
         }
     }
 
+    private createUpdate(id: string): string {
+        var ret = {};
+        if (id == this.user) { // write update message for user
+            ret = {
+                status: "update",
+                type: "user",
+                id: this.user,
+                info: {
+                    hpos: this.xrCamera?.position.clone(),
+                    hrot: this.xrCamera?.rotation.clone(),
+                    lpos: this.leftHand.absolutePosition.clone(),
+                    rpos: this.rightHand.absolutePosition.clone()
+                }
+            };
+        } else { // write update message for item
+            ret = {
+                status: "update",
+                type: "item",
+                id: id,
+                info: { // still need to include color somehow but am not sure how
+                    position: this.selectedObject!.absolutePosition.clone(),
+                    rotation: this.selectedObject!.rotation.clone(),
+                    scaling: this.selectedObject!.scaling.clone()
+                }
+            };
+        }
+
+        return JSON.stringify(ret);
+    }
+
     // updates environment according to message received from room
     // creates a cube if the message was 'cube' and a sphere if message was 'sphere'
     // mostly just testing things at this point, the real thing is going to be way more complicated
@@ -432,18 +466,19 @@ class Game
                         switch (msg.type) {
                             case "user":
                                 var user = this.envUsers.get(msg.id);
-                                if (!user) {
-                                    //var newUser = new User(msg.id,
-                                    //    Object.assign(new Vector3, msgInfo.hpos),
-                                    //    Object.assign(new Vector3, msgInfo.hrot),
-                                    //    Object.assign(new Vector3, msgInfo.lpos),
-                                    //    Object.assign(new Vector3, msgInfo.rpos));
-
+                                if (!user) { // add new user
                                     this.envUsers.set(msg.id, new User(msg.id, msgInfo));
-                                } else {
+                                } else { // update existing user
                                     user.update(msgInfo);
                                 }
                                 break;
+                            default:
+                                var item = this.envObjects.get(msg.id);
+                                if (item) { // update info of item 
+                                    item.position = Object.assign(item.position, msgInfo.position);
+                                    item.rotation = Object.assign(item.rotation, msgInfo.rotation);
+                                    item.scaling = Object.assign(item.scaling, msgInfo.scaling);
+                                }
                         }
                         break;
                     case "remove":
@@ -522,7 +557,7 @@ class Game
 
         // add message listener to room - don't listen to messages in other rooms
         this.client.on("Room.timeline", (event: any, room: any, toStartOfTimeline: any) => {
-            if (room.roomId == this.room) {
+            if (room.roomId == this.room && this.user != event.getSender()) {
                 //console.log(event.event.content.body);
                 //console.log("room: " + room.roomId);
 
@@ -535,15 +570,15 @@ class Game
                     var body = JSON.parse(event.event.content.body);
                     console.log('body ----------------' + body); 
                   
-                    if (body.status == "update") {
+                    //if (body.status == "update") {
                         
-                        console.log("update type, print content: " + body.content);
-                        // body.content = body.content.trim()
-                        //  var obj = JSON.parse(body.content);
-                        var obj = body.content
-                        console.log("print user: " + obj.id);
-                        console.log("print hpos: " + obj.hpos);
-                    }
+                    //    console.log("update type, print content: " + body.content);
+                    //    // body.content = body.content.trim()
+                    //    //  var obj = JSON.parse(body.content);
+                    //    var obj = body.content
+                    //    console.log("print user: " + obj.id);
+                    //    console.log("print hpos: " + obj.hpos);
+                    //}
                 }
             }
         }});
