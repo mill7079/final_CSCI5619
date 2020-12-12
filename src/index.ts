@@ -72,7 +72,7 @@ class Game
     private userPosition: Vector3 | null; 
     private leftPosition: Vector3 | null;
     private rightPosition: Vector3 | null;
-    private userObj: User | null = null;
+    //private userObj: User | null = null;
 
     private failedLogin: TextBlock | null;
 
@@ -191,7 +191,7 @@ class Game
                 this.leftHand.isVisible = true;
             }
 
-            this.userObj?.move(this.xrCamera!.position, this.xrCamera!.rotation, this.leftHand.absolutePosition, this.rightHand.absolutePosition);
+            //this.userObj?.move(this.xrCamera!.position, this.xrCamera!.rotation, this.leftHand.absolutePosition, this.rightHand.absolutePosition);
 
         });
 
@@ -421,33 +421,52 @@ class Game
             message = message.trim()
             var msg = JSON.parse(message);
             if (msg.info){
-            // msg.info = msg.info.trim()
-            var msgInfo = msg.info;
+                // msg.info = msg.info.trim()
+                var msgInfo = msg.info;
 
-            switch (msg.status) {
-                case "create":
-                    switch (msg.type) {
-                        case "box":
-                            var newMesh = MeshBuilder.CreateBox(msg.id, msgInfo.opts, this.scene); // was JSON.parse(msgInfo.opts) 
-                            newMesh.position = Object.assign(newMesh.position, msgInfo.position);
-                            newMesh.rotation = Object.assign(newMesh.rotation, msgInfo.rotation);
-                            this.envObjects.set(msg.id, newMesh);
-                            break;
-                        case "sphere":
-                            break;
-                        default:
-                            console.log("shape not matched");
-                    }
-                    break;
-                case "update":
-                    break;
-                case "remove":
-                    break;
+                switch (msg.status) {
+                    case "create":
+                        switch (msg.type) {
+                            case "box":
+                                var newMesh = MeshBuilder.CreateBox(msg.id, msgInfo.opts, this.scene); // was JSON.parse(msgInfo.opts) 
+                                newMesh.position = Object.assign(newMesh.position, msgInfo.position);
+                                newMesh.rotation = Object.assign(newMesh.rotation, msgInfo.rotation);
+                                this.envObjects.set(msg.id, newMesh);
+                                break;
+                            case "sphere":
+                                var newMesh = MeshBuilder.CreateSphere(msg.id, msgInfo.opts, this.scene);
+                                newMesh.position = Object.assign(newMesh.position, msgInfo.position);
+                                newMesh.rotation = Object.assign(newMesh.rotation, msgInfo.rotation);
+                                this.envObjects.set(msg.id, newMesh);
+                                break;
+                            default:
+                                console.log("shape not matched");
+                        }
+                        break;
+                    case "update":
+                        switch (msg.type) {
+                            case "user":
+                                var user = this.envUsers.get(msg.id);
+                                if (!user) {
+                                    //var newUser = new User(msg.id,
+                                    //    Object.assign(new Vector3, msgInfo.hpos),
+                                    //    Object.assign(new Vector3, msgInfo.hrot),
+                                    //    Object.assign(new Vector3, msgInfo.lpos),
+                                    //    Object.assign(new Vector3, msgInfo.rpos));
+
+                                    this.envUsers.set(msg.id, new User(msg.id, msgInfo));
+                                } else {
+                                    user.update(msgInfo);
+                                }
+                                break;
+                        }
+                        break;
+                    case "remove":
+                        break;
+                }
             }
         }
-    }
         
-
 
         ////console.log("update found: " + message);
         //if (message == "cube") {
@@ -512,7 +531,7 @@ class Game
             this.loginStatus!.dispose(false, true);
 
             // create self user object
-            this.userObj = new User(this.user);
+            //this.userObj = new User(this.user);
             //console.log("head pos: " + this.xrCamera?.position + " left controller: " + this.leftController + " right controller: " + this.rightController);
         });
 
@@ -616,33 +635,43 @@ class User {
     private left: AbstractMesh;
     private right: AbstractMesh;
 
-    constructor(user: string, head: Vector3 = new Vector3(0, 0, 0), headRotation: Vector3 = new Vector3(0, 0, 0),
-                                            left: Vector3 = new Vector3(0, 0, 0), right: Vector3 = new Vector3(0, 0, 0)) {
-        this.user = user;
-        this.head = MeshBuilder.CreateBox((user + "_head"), { size: 0.3 });
-        this.head.position = head;
-        this.head.rotation = headRotation;
-        this.left = MeshBuilder.CreateSphere((user + "_left"), { segments: 16, diameter: 0.1 });
-        this.left.position = left;
-        this.right = MeshBuilder.CreateSphere((user + "_right"), { segments: 16, diameter: 0.1 });
-        this.right.position = right;
+    //constructor(user: string, head: Vector3 = new Vector3(0, 0, 0), headRotation: Vector3 = new Vector3(0, 0, 0),
+    //                                        left: Vector3 = new Vector3(0, 0, 0), right: Vector3 = new Vector3(0, 0, 0)) {
+    //    this.user = user;
+    //    this.head = MeshBuilder.CreateBox((user + "_head"), { size: 0.3 });
+    //    this.head.position = head;
+    //    this.head.rotation = headRotation;
+    //    this.left = MeshBuilder.CreateSphere((user + "_left"), { segments: 16, diameter: 0.1 });
+    //    this.left.position = left;
+    //    this.right = MeshBuilder.CreateSphere((user + "_right"), { segments: 16, diameter: 0.1 });
+    //    this.right.position = right;
 
-        this.move(head, headRotation, left, right);
+    //    this.move(head, headRotation, left, right);
+    //}
+
+    // takes in user ID and JSON object with position info 
+    constructor(id: string, info: any) {
+        this.user = id;
+        this.head = MeshBuilder.CreateBox((id + "_head"), { size: 0.3 });
+        this.left = MeshBuilder.CreateSphere((id + "_left"), { segments: 8, diameter: 0.1 });
+        this.right = MeshBuilder.CreateSphere((id + "_right"), { segments: 8, diameter: 0.1 });
+
+        this.update(info);
     }
 
-    public move(head: Vector3, headRotation: Vector3, left: Vector3, right: Vector3) {
-        this.head.position = head;
-        this.head.rotation = headRotation;
-        this.left.position = left;
-        this.right.position = right;
+    //public move(head: Vector3, headRotation: Vector3, left: Vector3, right: Vector3) {
+    //    this.head.position = head;
+    //    this.head.rotation = headRotation;
+    //    this.left.position = left;
+    //    this.right.position = right;
 
-        var content = {
-            type: "update",
-            content: this.toString()
-        };
+    //    var content = {
+    //        type: "update",
+    //        content: this.toString()
+    //    };
 
-        Messages.sendMessage(false, JSON.stringify(content));
-    }
+    //    Messages.sendMessage(false, JSON.stringify(content));
+    //}
 
     public remove() {
         this.head.dispose();
@@ -669,6 +698,8 @@ class User {
     // return JSON string
     public toString() {
         var ret = {
+            status: "update",
+            type: "user",
             id: this.user,
             info: {
                 hpos: this.head.position.clone(),
