@@ -481,12 +481,16 @@ class Game
                                 break;
 
                             case "box":
-                                var object = this.envObjects.get(msg.id); 
-                                var user_box = this.envObjects.get(msg.id); 
+                                var env_object = this.envObjects.get(msg.id); 
                                 if (msg.user != this.user){
                                     // want way to attach mesh to hand of other users 
                                     console.log('updating other users box position'); 
+                                    if (env_object) { // update info of item 
+                                    env_object.position = Object.assign(env_object.position, msgInfo.position);
+                                    env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
+                                    env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
                                 }
+                            }
                                 
                             default:
                                 var item = this.envObjects.get(msg.id);
