@@ -368,12 +368,13 @@ class Game
                 this.envObjects.set(newMesh.name, newMesh);
 
                 var message = {
+                    user: this.user,
                     status: "create",
                     type: "box",
                     id: newMesh.name,
                     info: {
-                        position: newMesh.position,
-                        rotation: newMesh.rotation,
+                        position: newMesh.position.clone(),
+                        rotation: newMesh.rotation.clone(),
                         opts: {
                             size: 1
                         }
@@ -416,17 +417,19 @@ class Game
                 }
             };
         } else { // write update message for item
+            if (this.selectedObject){
             ret = {
                 status: "update",
                 type: "item",
                 id: id,
+                user: this.user, 
                 info: { // still need to include color somehow but am not sure how
                     position: this.selectedObject!.absolutePosition.clone(),
                     rotation: this.selectedObject!.rotation.clone(),
                     scaling: this.selectedObject!.scaling.clone()
                 }
             };
-        }
+        }}
 
         return JSON.stringify(ret);
     }
@@ -447,10 +450,14 @@ class Game
                     case "create":
                         switch (msg.type) {
                             case "box":
+                                if (msg.user != this.user){ // trying to prevent duplicates
+                                console.log('shouldnt reach here'); 
                                 var newMesh = MeshBuilder.CreateBox(msg.id, msgInfo.opts, this.scene); // was JSON.parse(msgInfo.opts) 
                                 newMesh.position = Object.assign(newMesh.position, msgInfo.position);
                                 newMesh.rotation = Object.assign(newMesh.rotation, msgInfo.rotation);
                                 this.envObjects.set(msg.id, newMesh);
+                                }
+
                                 break;
                             case "sphere":
                                 var newMesh = MeshBuilder.CreateSphere(msg.id, msgInfo.opts, this.scene);
@@ -472,13 +479,22 @@ class Game
                                     user.update(msgInfo);
                                 }
                                 break;
+
+                            case "box":
+                                var object = this.envObjects.get(msg.id); 
+                                var user_box = this.envObjects.get(msg.id); 
+                                if (msg.user != this.user){
+                                    // want way to attach mesh to hand of other users 
+                                    console.log('updating other users box position'); 
+                                }
+                                
                             default:
                                 var item = this.envObjects.get(msg.id);
-                                if (item) { // update info of item 
-                                    item.position = Object.assign(item.position, msgInfo.position);
-                                    item.rotation = Object.assign(item.rotation, msgInfo.rotation);
-                                    item.scaling = Object.assign(item.scaling, msgInfo.scaling);
-                                }
+                                // if (item) { // update info of item 
+                                //     item.position = Object.assign(item.position, msgInfo.position);
+                                //     item.rotation = Object.assign(item.rotation, msgInfo.rotation);
+                                //     item.scaling = Object.assign(item.scaling, msgInfo.scaling);
+                                // }
                         }
                         break;
                     case "remove":
