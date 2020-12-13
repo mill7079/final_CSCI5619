@@ -351,10 +351,10 @@ class Game
 
         this.processControllerInput();
 
-        if (this.selectedObject != null) {
-            console.log("sending message!");
-            Messages.sendMessage(false, this.createUpdate(this.selectedObject.name));
-        }
+        //if (this.selectedObject != null) {
+        //    console.log("sending message!");
+        //    Messages.sendMessage(false, this.createUpdate(this.selectedObject.name));
+        //}
     }
 
     private processControllerInput() {
@@ -397,7 +397,10 @@ class Game
                 }
                 break;
             case PointerEventTypes.POINTERUP:
-                console.log("***************POINTER UP******************");
+                if (this.selectedObject) {
+                    Messages.sendMessage(false, this.createUpdate(this.selectedObject.name));
+                }
+                //console.log("***************POINTER UP******************");
                 this.selectedObject?.setParent(null);
                 this.selectedObject = null;
                 break;
