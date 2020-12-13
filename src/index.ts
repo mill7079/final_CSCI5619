@@ -351,7 +351,8 @@ class Game
 
         this.processControllerInput();
 
-        if (this.selectedObject) {
+        if (this.selectedObject != null) {
+            console.log("sending message!");
             Messages.sendMessage(false, this.createUpdate(this.selectedObject.name));
         }
     }
@@ -368,10 +369,10 @@ class Game
                 this.envObjects.set(newMesh.name, newMesh);
 
                 var message = {
-                    user: this.user,
                     status: "create",
                     type: "box",
                     id: newMesh.name,
+                    user: this.user,
                     info: {
                         position: newMesh.position.clone(),
                         rotation: newMesh.rotation.clone(),
@@ -396,6 +397,7 @@ class Game
                 }
                 break;
             case PointerEventTypes.POINTERUP:
+                console.log("***************POINTER UP******************");
                 this.selectedObject?.setParent(null);
                 this.selectedObject = null;
                 break;
@@ -425,7 +427,7 @@ class Game
                 user: this.user, 
                 info: { // still need to include color somehow but am not sure how
                     position: this.selectedObject!.absolutePosition.clone(),
-                    rotation: this.selectedObject!.rotation.clone(),
+                    rotation: this.selectedObject!.absoluteRotationQuaternion.toEulerAngles().clone(),
                     scaling: this.selectedObject!.scaling.clone()
                 }
             };
@@ -480,20 +482,20 @@ class Game
                                 }
                                 break;
 
-                            case "box":
+                            case "item":
                                 var env_object = this.envObjects.get(msg.id); 
                                 if (msg.user != this.user){
-                                    // want way to attach mesh to hand of other users 
-                                    console.log('updating other users box position'); 
+                                    // want way to attach mesh to hand of other users
+                                    console.log('updating other users item'); 
                                     if (env_object) { // update info of item 
-                                    env_object.position = Object.assign(env_object.position, msgInfo.position);
-                                    env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
-                                    env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
+                                        env_object.position = Object.assign(env_object.position, msgInfo.position);
+                                        env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
+                                        env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
                                 }
                             }
                                 
                             default:
-                                var item = this.envObjects.get(msg.id);
+                                //var item = this.envObjects.get(msg.id);
                                 // if (item) { // update info of item 
                                 //     item.position = Object.assign(item.position, msgInfo.position);
                                 //     item.rotation = Object.assign(item.rotation, msgInfo.rotation);
@@ -576,32 +578,35 @@ class Game
         });
 
         // add message listener to room - don't listen to messages in other rooms
-        this.client.on("Room.timeline", (event: any, room: any, toStartOfTimeline: any) => {
-            if (room.roomId == this.room && this.user != event.getSender()) {
+        //this.client.on("Room.timeline", (event: any, room: any, toStartOfTimeline: any) => {
+        this.client.on("event", (event: any) => {
+            //if (room.roomId == this.room && ("@" + this.user + ":matrix.org") != event.getSender()) {
+            if (event.getRoomId() == this.room && ("@" + this.user + ":matrix.org") != event.getSender()) {
                 //console.log(event.event.content.body);
                 //console.log("room: " + room.roomId);
 
                 // send messages to function to check if it's an update message
                 if (event.event.type == 'm.room.message') {
                     this.updateEnv(event.event.content.body);
-                    console.log("body: " + event.event.content.body);
+                    //console.log("body: " + event.event.content.body);
                     if (event.event.content.body){
-                    event.event.content.body = event.event.content.body.trim()
-                    var body = JSON.parse(event.event.content.body);
-                    console.log('body ----------------' + body); 
+                        event.event.content.body = event.event.content.body.trim()
+                        var body = JSON.parse(event.event.content.body);
+                        //console.log('body ----------------' + body); 
                   
-                    //if (body.status == "update") {
+                        //if (body.status == "update") {
                         
-                    //    console.log("update type, print content: " + body.content);
-                    //    // body.content = body.content.trim()
-                    //    //  var obj = JSON.parse(body.content);
-                    //    var obj = body.content
-                    //    console.log("print user: " + obj.id);
-                    //    console.log("print hpos: " + obj.hpos);
-                    //}
+                        //    console.log("update type, print content: " + body.content);
+                        //    // body.content = body.content.trim()
+                        //    //  var obj = JSON.parse(body.content);
+                        //    var obj = body.content
+                        //    console.log("print user: " + obj.id);
+                        //    console.log("print hpos: " + obj.hpos);
+                        //}
+                    }
                 }
             }
-        }});
+        });
 
         //Messages.setClient(this.client);
         //Messages.getClient();
