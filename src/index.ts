@@ -366,8 +366,8 @@ class Game
         this.processControllerInput();
 
         //if (this.selectedObject != null) {
-        //    console.log("sending message!");
-        //    Messages.sendMessage(false, this.createUpdate(this.selectedObject.name));
+        //    //console.log("sending message!");
+        //    Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
         //}
     }
 
@@ -425,11 +425,12 @@ class Game
                 }
                 break;
             case PointerEventTypes.POINTERUP:
+                this.selectedObject?.setParent(null);
                 if (this.selectedObject) {
                     Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
                 }
+
                 //console.log("***************POINTER UP******************");
-                this.selectedObject?.setParent(null);
                 this.selectedObject = null;
                 break;
         }
@@ -520,6 +521,7 @@ class Game
                                         Messages.sendMessage(false, this.createUpdate("sync"));
                                     }
                                     this.envUsers.set(msg.id, new User(msg.id, msgInfo));
+                                    Messages.sendMessage(false, this.createUpdate(this.user));
                                 } else { // update existing user
                                     //console.log("user already exists");
                                     user.update(msgInfo);
@@ -527,22 +529,22 @@ class Game
                                 break;
 
                             case "item":
-                                var env_object = this.envObjects.get(msg.id);
-                                // want way to attach mesh to hand of other users
-                                //console.log('updating other users item'); 
-                                if (env_object) { // update info of item 
-                                    env_object.position = Object.assign(env_object.position, msgInfo.position);
-                                    env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
-                                    env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
-                                }
+                                //var env_object = this.envObjects.get(msg.id);
+                                //// want way to attach mesh to hand of other users
+                                ////console.log('updating other users item'); 
+                                //if (env_object) { // update info of item 
+                                //    env_object.position = Object.assign(env_object.position, msgInfo.position);
+                                //    env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
+                                //    env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
+                                //}
 
 
                                 // doesn't appear to serialize the absolute position unfortunately
-                                //this.envObjects.get(msg.id)?.dispose();
-                                //this.envObjects.delete(msg.id);
+                                this.envObjects.get(msg.id)?.dispose();
+                                this.envObjects.delete(msg.id);
 
-                                //SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
-                                //this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
+                                SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
+                                this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
                         }
                         break;
                     case "remove":
