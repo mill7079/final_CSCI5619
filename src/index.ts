@@ -400,7 +400,7 @@ class Game
 
                 var message = {
                     status: "create",
-                    type: "box",
+                    type: "item",
                     //id: newMesh.name,
                     id: newMesh.uniqueId.toString(),
                     user: this.user,
@@ -450,11 +450,25 @@ class Game
                     rpos: this.rightHand.absolutePosition.clone()
                 }
             };
-        } else if (id == "check") {
+        } else if (id == "sync") {
+            var meshes : any[] = [];
+            this.envObjects.forEach((mesh, id) => {
+                var message = {
+                    status: "create",
+                    type: "item",
+                    id: id,
+                    mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(mesh)),
+                    info: {
+
+                    }
+                };
+
+                meshes.push(message);
+            });
             ret = {
-                status: "check",
+                status: "sync",
                 info: {
-                    admin: this.user
+                    meshes: meshes
                 }
             };
         } else { // write update message for item
@@ -463,7 +477,8 @@ class Game
                 status: "update",
                 type: "item",
                 id: id,
-                user: this.user, 
+                user: this.user,
+                mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(this.selectedObject!)),
                 info: { // still need to include color somehow but am not sure how
                     position: this.selectedObject!.absolutePosition.clone(),
                     rotation: this.selectedObject!.absoluteRotationQuaternion.toEulerAngles().clone(),
@@ -502,7 +517,7 @@ class Game
                                 if (!user) { // add new user
                                     //console.log("add new user: " + msg.id);
                                     if (this.admin) {
-                                        Messages.sendMessage(false, this.createUpdate("check"));
+                                        Messages.sendMessage(false, this.createUpdate("sync"));
                                     }
                                     this.envUsers.set(msg.id, new User(msg.id, msgInfo));
                                 } else { // update existing user
@@ -513,23 +528,31 @@ class Game
 
                             case "item":
                                 var env_object = this.envObjects.get(msg.id);
-                                if (msg.user != this.user){
-                                    // want way to attach mesh to hand of other users
-                                    //console.log('updating other users item'); 
-                                    if (env_object) { // update info of item 
-                                        env_object.position = Object.assign(env_object.position, msgInfo.position);
-                                        env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
-                                        env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
+                                // want way to attach mesh to hand of other users
+                                //console.log('updating other users item'); 
+                                if (env_object) { // update info of item 
+                                    env_object.position = Object.assign(env_object.position, msgInfo.position);
+                                    env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
+                                    env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
                                 }
-                            }
+
+
+                                // doesn't appear to serialize the absolute position unfortunately
+                                //this.envObjects.get(msg.id)?.dispose();
+                                //this.envObjects.delete(msg.id);
+
+                                //SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
+                                //this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
                         }
                         break;
                     case "remove":
                         break;
-                    case "check":
+                    case "sync":
+                        msgInfo.meshes.forEach((message: any) => {
+                            this.updateEnv(JSON.stringify(message));
+                        });
                         this.admin = false;
-                        console.log("admin = " + this.admin);
-                        break
+                        break;
                 }
             }
         }
@@ -635,9 +658,6 @@ class Game
         //        }
         //    }
         //});
-
-        //Messages.setClient(this.client);
-        //Messages.getClient();
 
         // add message sender 
         //const content = {
