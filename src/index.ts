@@ -69,11 +69,11 @@ class Game
 
     //private gameState: State;
     private envUsers: Map<string, User>;
-    private envObjects: Map<string, Mesh>;
+    private envObjects: Map<string, AbstractMesh>;
 
-    private userPosition: Vector3 | null; 
-    private leftPosition: Vector3 | null;
-    private rightPosition: Vector3 | null;
+    //private userPosition: Vector3 | null; 
+    //private leftPosition: Vector3 | null;
+    //private rightPosition: Vector3 | null;
     //private userObj: User | null = null;
 
     private failedLogin: TextBlock | null;
@@ -103,9 +103,9 @@ class Game
         this.selectedObject = null;
 
         // set up positions 
-        this.userPosition = null; 
-        this.leftPosition = null; 
-        this.rightPosition = null; 
+        //this.userPosition = null; 
+        //this.leftPosition = null; 
+        //this.rightPosition = null; 
 
         // create client on server
         //this.client = MATRIX.createClient("https://matrix.org");
@@ -346,6 +346,7 @@ class Game
             this.processPointer(pointerInfo);
         });
 
+
     }
 
 
@@ -377,21 +378,35 @@ class Game
     private onRightSqueeze(component?: WebXRControllerComponent) {
         if (component?.changes.pressed) {
             if (component?.pressed) {
-                var newMesh = MeshBuilder.CreateBox("cube", { size: 1 }, this.scene);
+                var num = Math.round(Math.random() * 14);
+                //var newMesh = MeshBuilder.CreateBox("cube", { size: 1 }, this.scene);
+                var newMesh = MeshBuilder.CreatePolyhedron("name", { type: num, size: 1 }, this.scene);
                 newMesh.position = new Vector3(2, 3, 4);
-                this.envObjects.set(newMesh.name, newMesh);
+                this.envObjects.set(newMesh.uniqueId.toString(), newMesh);
+
+                //var message = {
+                //    status: "create",
+                //    type: "box",
+                //    id: newMesh.name,
+                //    user: this.user,
+                //    info: {
+                //        position: newMesh.position.clone(),
+                //        rotation: newMesh.rotation.clone(),
+                //        opts: {
+                //            size: 1
+                //        }
+                //    }
+                //};
 
                 var message = {
                     status: "create",
                     type: "box",
-                    id: newMesh.name,
+                    //id: newMesh.name,
+                    id: newMesh.uniqueId.toString(),
                     user: this.user,
+                    mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(newMesh)),
                     info: {
-                        position: newMesh.position.clone(),
-                        rotation: newMesh.rotation.clone(),
-                        opts: {
-                            size: 1
-                        }
+                        position: newMesh.absolutePosition.clone()
                     }
                 };
 
@@ -411,7 +426,7 @@ class Game
                 break;
             case PointerEventTypes.POINTERUP:
                 if (this.selectedObject) {
-                    Messages.sendMessage(false, this.createUpdate(this.selectedObject.name));
+                    Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
                 }
                 //console.log("***************POINTER UP******************");
                 this.selectedObject?.setParent(null);
@@ -461,8 +476,6 @@ class Game
     }
 
     // updates environment according to message received from room
-    // creates a cube if the message was 'cube' and a sphere if message was 'sphere'
-    // mostly just testing things at this point, the real thing is going to be way more complicated
     private updateEnv(message: string) {
         console.log("message: " + message);
         if (message) {
@@ -473,27 +486,13 @@ class Game
                 var msgInfo = msg.info;
 
                 switch (msg.status) {
-                    case "create":
-                        switch (msg.type) {
-                            case "box":
-                                if (msg.user != this.user){ // trying to prevent duplicates
-                                    //console.log('shouldnt reach here'); 
-                                    var newMesh = MeshBuilder.CreateBox(msg.id, msgInfo.opts, this.scene); // was JSON.parse(msgInfo.opts) 
-                                    newMesh.position = Object.assign(newMesh.position, msgInfo.position);
-                                    newMesh.rotation = Object.assign(newMesh.rotation, msgInfo.rotation);
-                                    this.envObjects.set(msg.id, newMesh);
-                                }
+                    case "create": // only used for items
+                        // import mesh from serialized mesh
+                        SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
 
-                                break;
-                            case "sphere":
-                                var newMesh = MeshBuilder.CreateSphere(msg.id, msgInfo.opts, this.scene);
-                                newMesh.position = Object.assign(newMesh.position, msgInfo.position);
-                                newMesh.rotation = Object.assign(newMesh.rotation, msgInfo.rotation);
-                                this.envObjects.set(msg.id, newMesh);
-                                break;
-                            default:
-                                console.log("shape not matched");
-                        }
+                        let newMesh = this.scene.meshes[this.scene.meshes.length - 1];
+                        this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
+
                         break;
                     case "update":
                         switch (msg.type) {
@@ -513,24 +512,16 @@ class Game
                                 break;
 
                             case "item":
-                                var env_object = this.envObjects.get(msg.id); 
+                                var env_object = this.envObjects.get(msg.id);
                                 if (msg.user != this.user){
                                     // want way to attach mesh to hand of other users
-                                    console.log('updating other users item'); 
+                                    //console.log('updating other users item'); 
                                     if (env_object) { // update info of item 
                                         env_object.position = Object.assign(env_object.position, msgInfo.position);
                                         env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
                                         env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
                                 }
                             }
-                                
-                            default:
-                                //var item = this.envObjects.get(msg.id);
-                                // if (item) { // update info of item 
-                                //     item.position = Object.assign(item.position, msgInfo.position);
-                                //     item.rotation = Object.assign(item.rotation, msgInfo.rotation);
-                                //     item.scaling = Object.assign(item.scaling, msgInfo.scaling);
-                                // }
                         }
                         break;
                     case "remove":
@@ -566,11 +557,6 @@ class Game
         await this.client.login("m.login.password", { user: user, password: pass }).then((response: any) => {
             console.log("logged in!");
 
-            //var user_array = []
-            //user_array.push(this.leftPosition);
-            //user_array.push(this.rightPosition); 
-            //user_array.push(this.userPosition); 
-
             // add user info to chat to update other info 
             //const user_info = {
             //    "body": "user " + user + " user_array: " + user_array,
@@ -604,14 +590,11 @@ class Game
         // sync client - hopefully finishes before sync is needed
         await this.client.once('sync', (state: any, prevState: any, res: any) => {
             console.log("client state: " + state); // state will be 'PREPARED' when the client is ready to use
-            this.loginStatus!.dispose(false, true);
 
             // create self user object
             Messages.sendMessage(false, this.createUpdate(this.user));
 
-            //this.userObj = new User(this.user);
-            //console.log("head pos: " + this.xrCamera?.position + " left controller: " + this.leftController + " right controller: " + this.rightController);
-
+            // add message listener to room
             this.client.on("event", (event: any) => {
                 //console.log("sync state: " + this.client.getSyncState());
                 if (event.getRoomId() == this.room && ("@" + this.user + ":matrix.org") != event.getSender()) {
@@ -628,6 +611,8 @@ class Game
                     }
                 }
             });
+            
+            this.loginStatus!.dispose(false, true);
         });
 
         // add message listener to room - don't listen to messages in other rooms
