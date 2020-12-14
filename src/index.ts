@@ -201,13 +201,6 @@ class Game
                 this.leftHand.isVisible = true;
             }
 
-            //this.userObj?.move(this.xrCamera!.position, this.xrCamera!.rotation, this.leftHand.absolutePosition, this.rightHand.absolutePosition);
-            //console.log(this.rightController + " "+ this.leftController);
-            //if (this.rightController && this.leftController) {
-            //    console.log("add user");
-            //    Messages.sendMessage(false, this.createUpdate(this.user));
-            //}
-
             Messages.sendMessage(false, this.createUpdate(this.user));
         });
 
@@ -222,8 +215,6 @@ class Game
                 this.leftHand.isVisible = false;
             }
         });
-
-        //this.scene.debugLayer.show();
 
         // create login gui
         this.guiPlane = MeshBuilder.CreatePlane("guiPlane", {}, this.scene);
@@ -353,16 +344,6 @@ class Game
     // The main update loop will be executed once per frame before the scene is rendered
     private update() : void
     {
-        //if (this.xrCamera){
-        //this.userPosition = this.xrCamera!.globalPosition.clone(); 
-        //}
-        //if (this.rightController){
-        //this.rightPosition = this.rightController!.pointer.position.clone(); 
-        //}
-        //if (this.leftController){
-        //this.leftPosition = this.leftController!.pointer.position.clone(); 
-        //}
-
         this.processControllerInput();
 
         //if (this.selectedObject != null) {
@@ -480,7 +461,7 @@ class Game
                 id: id,
                 user: this.user,
                 mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(this.selectedObject!)),
-                info: { // still need to include color somehow but am not sure how
+                info: { 
                     position: this.selectedObject!.absolutePosition.clone(),
                     rotation: this.selectedObject!.absoluteRotationQuaternion.toEulerAngles().clone(),
                     scaling: this.selectedObject!.scaling.clone()
@@ -495,7 +476,7 @@ class Game
     private updateEnv(message: string) {
         console.log("message: " + message);
         if (message) {
-            message = message.trim()
+            message = message.trim();
             var msg = JSON.parse(message);
             if (msg.info) {
                 // msg.info = msg.info.trim()
@@ -506,6 +487,7 @@ class Game
                         // import mesh from serialized mesh
                         SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
 
+                        // add imported mesh to list with its unique id
                         let newMesh = this.scene.meshes[this.scene.meshes.length - 1];
                         this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
 
@@ -514,16 +496,17 @@ class Game
                         switch (msg.type) {
                             case "user":
                                 var user = this.envUsers.get(msg.id);
-                                //console.log("user: " + user);
+
                                 if (!user) { // add new user
-                                    //console.log("add new user: " + msg.id);
-                                    if (this.admin) {
+                                    if (this.admin) { // send env sync to new user if this user is admin
                                         Messages.sendMessage(false, this.createUpdate("sync"));
                                     }
+
+                                    // add user to list, update new user with this user's info 
                                     this.envUsers.set(msg.id, new User(msg.id, msgInfo));
                                     Messages.sendMessage(false, this.createUpdate(this.user));
+
                                 } else { // update existing user
-                                    //console.log("user already exists");
                                     user.update(msgInfo);
                                 }
                                 break;
@@ -539,7 +522,8 @@ class Game
                                 //}
 
 
-                                // doesn't appear to serialize the absolute position unfortunately
+                                // attempt to update meshes using same import method
+                                // appears to duplicate presynced meshes?
                                 this.envObjects.get(msg.id)?.dispose();
                                 this.envObjects.delete(msg.id);
 
@@ -549,7 +533,7 @@ class Game
                         break;
                     case "remove":
                         break;
-                    case "sync":
+                    case "sync": // sync existing objects in environment 
                         msgInfo.meshes.forEach((message: any) => {
                             this.updateEnv(JSON.stringify(message));
                         });
@@ -558,23 +542,6 @@ class Game
                 }
             }
         }
-        
-
-        ////console.log("update found: " + message);
-        //if (message == "cube") {
-        //    console.log("create a cube!");
-        //    var cube = MeshBuilder.CreateBox("cube", { "size": 1 }, this.scene);
-        //    cube.position = new Vector3(3, 1.5, 0);
-        //} else if (message == "sphere") {
-        //    console.log("create a sphere!");
-        //    var sphere = MeshBuilder.CreateSphere("sphere", { diameter: 1 }, this.scene);
-        //    sphere.position = new Vector3(0, 1.5, -3);
-        //}
-
-        //else if (message.startsWith("user")){
-        //    console.log('this is the message that will be used to update environment'); 
-        //    console.log(message); 
-        //}
     }
 
     private async connect(user: string, pass: string) {
@@ -582,14 +549,6 @@ class Game
         await this.client.login("m.login.password", { user: user, password: pass }).then((response: any) => {
             console.log("logged in!");
 
-            // add user info to chat to update other info 
-            //const user_info = {
-            //    "body": "user " + user + " user_array: " + user_array,
-            //    "msgtype": "m.text"
-            //};
-            //this.client.sendEvent(this.room, "m.room.message", user_info, "", (err:any, res:any) => {
-            //    console.log(err);
-            //});
             this.client.joinRoom(this.room).then((response: any) => {
                 console.log("user joined room");
             });
@@ -623,12 +582,10 @@ class Game
             this.client.on("event", (event: any) => {
                 //console.log("sync state: " + this.client.getSyncState());
                 if (event.getRoomId() == this.room && ("@" + this.user + ":matrix.org") != event.getSender()) {
-                    //console.log(event.event.content.body);
 
                     // send messages to function to check if it's an update message
                     if (event.event.type == 'm.room.message') {
                         this.updateEnv(event.event.content.body);
-                        //console.log("body: " + event.event.content.body);
                         if (event.event.content.body) {
                             event.event.content.body = event.event.content.body.trim()
                             var body = JSON.parse(event.event.content.body);
@@ -660,64 +617,11 @@ class Game
         //        }
         //    }
         //});
-
-        // add message sender 
-        //const content = {
-        //    "body": user + " has been added",
-        //    "msgtype": "m.text"
-        //};
-
-        //this.client.sendEvent(this.room, "m.room.message", content, "", (err:any, res:any) => {
-        //    console.log(err);
-        //});
     }
 }
 /******* End of the Game class ******/
 
 
-
-// used for storing and sharing the environment state
-//class State {
-
-//    //// all users in environment, mapped to their usernames
-//    //private users: Map<string, Object>;
-
-//    //// all objects in environment, mapped to their names
-//    //private items: Map<string, AbstractMesh>;
-
-//    // should theoretically contain both users and items
-//    private objects: Map<string, Object>;
-
-//    constructor() {
-//        //users = new Map();
-//        //items = new Map();
-//        this.objects = new Map();
-//    }
-
-//    // receive update for an object passed as a JSON string
-//    receiveUpdate(info: string) {
-//        //var parsedInfo = JSON.parse(info);
-//        //var foundItem = this.objects.get(info.id);
-//        //if (foundItem) {
-//        //    foundItem.update(parsedInfo.info);
-//        //} else {
-//        //    var objInfo = JSON.parse(parsedInfo.info);
-//        //    console.log("num keys for object: " + Object.keys(objInfo).length);
-//        //    if (Object.keys(objInfo).length == 4) {
-//        //        this.objects.add(new User(info.id))
-//        //    } else {
-//        //        this.objects.add(new Item(info.id, parsedInfo.info));
-//        //    }
-//    }
-
-//    sendUpdate(id: string) {
-
-//    }
-
-//    //public toString() : string {
-//    //    return "";
-//    //}
-//}
 
 // represent users
 class User {
@@ -725,7 +629,7 @@ class User {
     // username
     private user: string;
 
-    // visualize headset and controllers 
+    // visualize headset and controllers
     private head: AbstractMesh;
     private left: AbstractMesh;
     private right: AbstractMesh;
@@ -736,6 +640,10 @@ class User {
         this.head = MeshBuilder.CreateBox((id + "_head"), { size: 0.3 });
         this.left = MeshBuilder.CreateSphere((id + "_left"), { segments: 8, diameter: 0.1 });
         this.right = MeshBuilder.CreateSphere((id + "_right"), { segments: 8, diameter: 0.1 });
+
+        this.head.isPickable = false;
+        this.left.isPickable = false;
+        this.right.isPickable = false;
 
         this.update(info);
     }
@@ -782,30 +690,30 @@ class User {
 }
 
 
-class Item {
+//class Item {
 
-    //private id: string;
-    ////private mesh: AbstractMesh;
+//    private id: string;
+//    //private mesh: AbstractMesh;
 
-    //// pass in ID and options for meshbuilder
-    ////constructor(id: string, opts: string) {
-    ////    this.id = id;
-    ////    var type = id.split("_")[0];
-    ////    //switch (type) {
-    ////    //    case "box":
-    ////    //        this.mesh = MeshBuilder.CreateBox(id, )
-    ////    //}
-    ////}
+//    // pass in ID and options for meshbuilder
+//    //constructor(id: string, opts: string) {
+//    //    this.id = id;
+//    //    var type = id.split("_")[0];
+//    //    //switch (type) {
+//    //    //    case "box":
+//    //    //        this.mesh = MeshBuilder.CreateBox(id, )
+//    //    //}
+//    //}
 
 
-    //constructor(createInfo: string) {
-    //    var parsedInfo: 4
-    //}
+//    constructor(createInfo: string) {
+//        var parsedInfo: 4
+//    }
 
-    //public update(info: string) {
+//    public update(info: string) {
 
-    //}
-}
+//    }
+//}
 
 // start the game
 var game = new Game();
