@@ -78,6 +78,8 @@ class Game
 
     private failedLogin: TextBlock | null;
 
+    private admin = true;
+
     constructor()
     {
         // Get the canvas element 
@@ -172,7 +174,12 @@ class Game
         this.xrCamera = xrHelper.baseExperience.camera;
 
         // Remove default teleportation
-        xrHelper.teleportation.dispose();
+        //xrHelper.teleportation.dispose();
+        xrHelper.teleportation.addFloorMesh(environment!.ground!);
+
+        // There is a bug in Babylon 4.1 that fails to reenable pointer selection after a teleport
+        // This is a hacky workaround that disables a different unused feature instead
+        xrHelper.teleportation.setSelectionFeature(xrHelper.baseExperience.featuresManager.getEnabledFeature("xr-background-remover"));
 
         // Assign the left and right controllers to member variables
         xrHelper.input.onControllerAddedObservable.add((inputSource) => {
@@ -195,7 +202,13 @@ class Game
             }
 
             //this.userObj?.move(this.xrCamera!.position, this.xrCamera!.rotation, this.leftHand.absolutePosition, this.rightHand.absolutePosition);
+            //console.log(this.rightController + " "+ this.leftController);
+            //if (this.rightController && this.leftController) {
+            //    console.log("add user");
+            //    Messages.sendMessage(false, this.createUpdate(this.user));
+            //}
 
+            Messages.sendMessage(false, this.createUpdate(this.user));
         });
 
         // Don't forget to deparent objects from the controllers or they will be destroyed!
@@ -407,6 +420,7 @@ class Game
         }
     }
 
+    // writes update message in correct format
     private createUpdate(id: string): string {
         var ret = {};
         if (id == this.user) { // write update message for user
@@ -419,6 +433,13 @@ class Game
                     hrot: this.xrCamera?.rotation.clone(),
                     lpos: this.leftHand.absolutePosition.clone(),
                     rpos: this.rightHand.absolutePosition.clone()
+                }
+            };
+        } else if (id == "check") {
+            ret = {
+                status: "check",
+                info: {
+                    admin: this.user
                 }
             };
         } else { // write update message for item
@@ -447,7 +468,7 @@ class Game
         if (message) {
             message = message.trim()
             var msg = JSON.parse(message);
-            if (msg.info){
+            if (msg.info) {
                 // msg.info = msg.info.trim()
                 var msgInfo = msg.info;
 
@@ -456,11 +477,11 @@ class Game
                         switch (msg.type) {
                             case "box":
                                 if (msg.user != this.user){ // trying to prevent duplicates
-                                console.log('shouldnt reach here'); 
-                                var newMesh = MeshBuilder.CreateBox(msg.id, msgInfo.opts, this.scene); // was JSON.parse(msgInfo.opts) 
-                                newMesh.position = Object.assign(newMesh.position, msgInfo.position);
-                                newMesh.rotation = Object.assign(newMesh.rotation, msgInfo.rotation);
-                                this.envObjects.set(msg.id, newMesh);
+                                    //console.log('shouldnt reach here'); 
+                                    var newMesh = MeshBuilder.CreateBox(msg.id, msgInfo.opts, this.scene); // was JSON.parse(msgInfo.opts) 
+                                    newMesh.position = Object.assign(newMesh.position, msgInfo.position);
+                                    newMesh.rotation = Object.assign(newMesh.rotation, msgInfo.rotation);
+                                    this.envObjects.set(msg.id, newMesh);
                                 }
 
                                 break;
@@ -478,9 +499,15 @@ class Game
                         switch (msg.type) {
                             case "user":
                                 var user = this.envUsers.get(msg.id);
+                                //console.log("user: " + user);
                                 if (!user) { // add new user
+                                    //console.log("add new user: " + msg.id);
+                                    if (this.admin) {
+                                        Messages.sendMessage(false, this.createUpdate("check"));
+                                    }
                                     this.envUsers.set(msg.id, new User(msg.id, msgInfo));
                                 } else { // update existing user
+                                    //console.log("user already exists");
                                     user.update(msgInfo);
                                 }
                                 break;
@@ -508,6 +535,10 @@ class Game
                         break;
                     case "remove":
                         break;
+                    case "check":
+                        this.admin = false;
+                        console.log("admin = " + this.admin);
+                        break
                 }
             }
         }
@@ -576,40 +607,49 @@ class Game
             this.loginStatus!.dispose(false, true);
 
             // create self user object
+            Messages.sendMessage(false, this.createUpdate(this.user));
+
             //this.userObj = new User(this.user);
             //console.log("head pos: " + this.xrCamera?.position + " left controller: " + this.leftController + " right controller: " + this.rightController);
+
+            this.client.on("event", (event: any) => {
+                //console.log("sync state: " + this.client.getSyncState());
+                if (event.getRoomId() == this.room && ("@" + this.user + ":matrix.org") != event.getSender()) {
+                    //console.log(event.event.content.body);
+
+                    // send messages to function to check if it's an update message
+                    if (event.event.type == 'm.room.message') {
+                        this.updateEnv(event.event.content.body);
+                        //console.log("body: " + event.event.content.body);
+                        if (event.event.content.body) {
+                            event.event.content.body = event.event.content.body.trim()
+                            var body = JSON.parse(event.event.content.body);
+                        }
+                    }
+                }
+            });
         });
 
         // add message listener to room - don't listen to messages in other rooms
         //this.client.on("Room.timeline", (event: any, room: any, toStartOfTimeline: any) => {
-        this.client.on("event", (event: any) => {
-            //if (room.roomId == this.room && ("@" + this.user + ":matrix.org") != event.getSender()) {
-            if (event.getRoomId() == this.room && ("@" + this.user + ":matrix.org") != event.getSender()) {
-                //console.log(event.event.content.body);
-                //console.log("room: " + room.roomId);
+        //this.client.on("event", (event: any) => {
+        //    //if (room.roomId == this.room && ("@" + this.user + ":matrix.org") != event.getSender()) {
+        //    console.log("sync state: " + this.client.getSyncState());
+        //    if (event.getRoomId() == this.room && ("@" + this.user + ":matrix.org") != event.getSender() && this.client.getSyncState() == "SYNCING") {
+        //        //console.log(event.event.content.body);
+        //        //console.log("room: " + room.roomId);
 
-                // send messages to function to check if it's an update message
-                if (event.event.type == 'm.room.message') {
-                    this.updateEnv(event.event.content.body);
-                    //console.log("body: " + event.event.content.body);
-                    if (event.event.content.body){
-                        event.event.content.body = event.event.content.body.trim()
-                        var body = JSON.parse(event.event.content.body);
-                        //console.log('body ----------------' + body); 
-                  
-                        //if (body.status == "update") {
-                        
-                        //    console.log("update type, print content: " + body.content);
-                        //    // body.content = body.content.trim()
-                        //    //  var obj = JSON.parse(body.content);
-                        //    var obj = body.content
-                        //    console.log("print user: " + obj.id);
-                        //    console.log("print hpos: " + obj.hpos);
-                        //}
-                    }
-                }
-            }
-        });
+        //        // send messages to function to check if it's an update message
+        //        if (event.event.type == 'm.room.message') {
+        //            this.updateEnv(event.event.content.body);
+        //            //console.log("body: " + event.event.content.body);
+        //            if (event.event.content.body){
+        //                event.event.content.body = event.event.content.body.trim()
+        //                var body = JSON.parse(event.event.content.body);
+        //            }
+        //        }
+        //    }
+        //});
 
         //Messages.setClient(this.client);
         //Messages.getClient();
@@ -707,13 +747,13 @@ class User {
         Messages.sendMessage(false, JSON.stringify(content));
     }
 
-    public update(info: string) {
-        var obj = JSON.parse(info);
+    public update(info: any) {
+        //var obj = JSON.parse(info);
 
-        Object.assign(this.head.position, obj.hpos);
-        Object.assign(this.head.rotation, obj.hrot);
-        Object.assign(this.left.position, obj.lpos);
-        Object.assign(this.right.position, obj.rpos);
+        Object.assign(this.head.position, info.hpos);
+        Object.assign(this.head.rotation, info.hrot);
+        Object.assign(this.left.position, info.lpos);
+        Object.assign(this.right.position, info.rpos);
     }
 
     // return JSON string
