@@ -5,11 +5,13 @@
 import { Engine } from "@babylonjs/core/Engines/engine"; 
 import { Scene } from "@babylonjs/core/scene";
 import { Vector3, Color3 } from "@babylonjs/core/Maths/math";
+import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { UniversalCamera } from "@babylonjs/core/Cameras/universalCamera";
 import { WebXRControllerComponent } from "@babylonjs/core/XR/motionController/webXRControllercomponent";
 import { WebXRInputSource } from "@babylonjs/core/XR/webXRInputSource";
 import { WebXRCamera } from "@babylonjs/core/XR/webXRCamera";
 import { PointLight } from "@babylonjs/core/Lights/pointLight";
+import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight";
 import { Logger } from "@babylonjs/core/Misc/logger";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
@@ -57,6 +59,8 @@ class Game
     private leftHand: AbstractMesh;
     private rightHand: AbstractMesh;
     private selectedObject: AbstractMesh | null;
+    private prevObjPos: Vector3 | null;
+    private minMove = 1;
 
     private client: any;
     private user = "";
@@ -65,11 +69,11 @@ class Game
     private guiPlane: AbstractMesh | null;
     private loginStatus: AbstractMesh | null;
     private black = "#070707";
-    private gray = "#808080";
+    private gray = "#707070";
 
-    //private gameState: State;
     private envUsers: Map<string, User>;
     private envObjects: Map<string, AbstractMesh>;
+    private userColor: Color3;
 
     //private userPosition: Vector3 | null; 
     //private leftPosition: Vector3 | null;
@@ -101,6 +105,7 @@ class Game
         this.rightHand.isPickable = false;
         this.rightHand.isVisible = false;
         this.selectedObject = null;
+        this.prevObjPos = null;
 
         // set up positions 
         //this.userPosition = null; 
@@ -115,9 +120,9 @@ class Game
         this.loginStatus = null;
         this.failedLogin = null;
 
-        //this.gameState = new State();
         this.envUsers = new Map();
         this.envObjects = new Map();
+        this.userColor = new Color3(Math.random(), Math.random(), Math.random());
     }
 
     start() : void 
@@ -151,9 +156,13 @@ class Game
         camera.attachControl(this.canvas, true);
 
        // Create a point light
-       var pointLight = new PointLight("pointLight", new Vector3(0, 2.5, 0), this.scene);
-       pointLight.intensity = 1.0;
-       pointLight.diffuse = new Color3(.25, .25, .25);
+        var pointLight = new PointLight("pointLight", new Vector3(0, 2.5, 0), this.scene);
+        pointLight.intensity = 1.0;
+        pointLight.diffuse = new Color3(.25, .25, .25);
+
+        var ambient = new HemisphericLight("ambientLight", new Vector3(0, 1, 0), this.scene);
+        ambient.intensity = 0.7;
+        ambient.diffuse = new Color3(0.3, 0.3, 0.25);
 
         // Creates a default skybox
         const environment = this.scene.createDefaultEnvironment({
@@ -172,6 +181,14 @@ class Game
 
         // Assigns the web XR camera to a member variable
         this.xrCamera = xrHelper.baseExperience.camera;
+
+        this.xrCamera.onAfterCameraTeleport.add((eventData, state) => {
+            //this.rightHand.material = new StandardMaterial("rightMat", this.scene);
+            //(<StandardMaterial>this.rightHand.material).emissiveColor = new Color3(0.5, 0, 0.5);
+
+            Messages.sendMessage(false, this.createUpdate(this.user));
+        });
+
 
         // Remove default teleportation
         //xrHelper.teleportation.dispose();
@@ -214,8 +231,23 @@ class Game
                 this.leftHand.parent = null;
                 this.leftHand.isVisible = false;
             }
+
+            if (!this.rightHand.isVisible && !this.leftHand.isVisible) {
+                var remove = {
+                    status: "remove",
+                    type: "user",
+                    id: this.user,
+                    info: {
+                        
+                    }
+                }
+                Messages.sendMessage(false, JSON.stringify(remove));
+                this.client.stopClient();
+                this.client.logout();
+            }
         });
 
+        
         // create login gui
         this.guiPlane = MeshBuilder.CreatePlane("guiPlane", {}, this.scene);
         this.guiPlane.position = new Vector3(0, 1, 1);
@@ -346,6 +378,13 @@ class Game
     {
         this.processControllerInput();
 
+        //if (this.selectedObject && Vector3.Distance(this.selectedObject!.absolutePosition, this.prevObjPos!) >= this.minMove) {
+        //    console.log("update time");
+        //    Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
+        //    this.prevObjPos = this.selectedObject.absolutePosition.clone();
+        //}
+
+
         //if (this.selectedObject != null) {
         //    //console.log("sending message!");
         //    Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
@@ -379,7 +418,7 @@ class Game
                 //    }
                 //};
 
-                var message = {
+                let message = {
                     status: "create",
                     type: "item",
                     //id: newMesh.name,
@@ -402,7 +441,11 @@ class Game
             case PointerEventTypes.POINTERDOWN:
                 if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo.pickedMesh?.name != "guiPlane") {
                     this.selectedObject = pointerInfo.pickInfo.pickedMesh;
+                    this.prevObjPos = this.selectedObject!.absolutePosition.clone();
                     this.selectedObject?.setParent(this.rightHand);
+                    if (this.selectedObject) {
+                        Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
+                    }
                 }
                 break;
             case PointerEventTypes.POINTERUP:
@@ -411,8 +454,8 @@ class Game
                     Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
                 }
 
-                //console.log("***************POINTER UP******************");
                 this.selectedObject = null;
+                this.prevObjPos = null;
                 break;
         }
     }
@@ -429,7 +472,8 @@ class Game
                     hpos: this.xrCamera?.position.clone(),
                     hrot: this.xrCamera?.rotation.clone(),
                     lpos: this.leftHand.absolutePosition.clone(),
-                    rpos: this.rightHand.absolutePosition.clone()
+                    rpos: this.rightHand.absolutePosition.clone(),
+                    color: this.userColor
                 }
             };
         } else if (id == "sync") {
@@ -455,19 +499,22 @@ class Game
             };
         } else { // write update message for item
             if (this.selectedObject){
-            ret = {
-                status: "update",
-                type: "item",
-                id: id,
-                user: this.user,
-                mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(this.selectedObject!)),
-                info: { 
-                    position: this.selectedObject!.absolutePosition.clone(),
-                    rotation: this.selectedObject!.absoluteRotationQuaternion.toEulerAngles().clone(),
-                    scaling: this.selectedObject!.scaling.clone()
-                }
-            };
-        }}
+                ret = {
+                    status: "update",
+                    type: "item",
+                    id: id,
+                    user: this.user,
+                    //mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(this.selectedObject!)),
+                    info: { 
+                        position: this.selectedObject!.absolutePosition.clone(),
+                        rotation: this.selectedObject!.absoluteRotationQuaternion.toEulerAngles().clone(),
+                        scaling: this.selectedObject!.scaling.clone(),
+                        selected: this.selectedObject.parent ? true : false,
+                        color: this.userColor
+                    }
+                };
+            }
+        }
 
         return JSON.stringify(ret);
     }
@@ -488,7 +535,7 @@ class Game
                         SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
 
                         // add imported mesh to list with its unique id
-                        let newMesh = this.scene.meshes[this.scene.meshes.length - 1];
+                        //let newMesh = this.scene.meshes[this.scene.meshes.length - 1];
                         this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
 
                         break;
@@ -503,7 +550,7 @@ class Game
                                     }
 
                                     // add user to list, update new user with this user's info 
-                                    this.envUsers.set(msg.id, new User(msg.id, msgInfo));
+                                    this.envUsers.set(msg.id, new User(msg.id, msgInfo, this.scene));
                                     Messages.sendMessage(false, this.createUpdate(this.user));
 
                                 } else { // update existing user
@@ -512,26 +559,39 @@ class Game
                                 break;
 
                             case "item":
-                                //var env_object = this.envObjects.get(msg.id);
-                                //// want way to attach mesh to hand of other users
-                                ////console.log('updating other users item'); 
-                                //if (env_object) { // update info of item 
-                                //    env_object.position = Object.assign(env_object.position, msgInfo.position);
-                                //    env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
-                                //    env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
-                                //}
+                                var env_object = this.envObjects.get(msg.id);
+                                // want way to attach mesh to hand of other users
+
+                                if (env_object) { // update info of item 
+                                    env_object.position = Object.assign(env_object.position, msgInfo.position);
+                                    env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
+                                    env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
+                                    console.log("msgInfo.selected: " + msgInfo.selected);
+                                    if (msgInfo.selected) {
+                                        env_object.edgesColor = Object.assign(env_object.edgesColor, msgInfo.color);
+                                        env_object.enableEdgesRendering();
+                                        env_object.isPickable = false;
+                                        console.log("other user selected object");
+                                    } else {
+                                        env_object.disableEdgesRendering();
+                                        env_object.isPickable = true;
+                                        console.log("other user deselected object");
+                                    }
+                                }
 
 
                                 // attempt to update meshes using same import method
                                 // appears to duplicate presynced meshes?
-                                this.envObjects.get(msg.id)?.dispose();
-                                this.envObjects.delete(msg.id);
+                                //this.envObjects.get(msg.id)?.dispose();
+                                //this.envObjects.delete(msg.id);
 
-                                SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
-                                this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
+                                //SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
+                                //this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
                         }
                         break;
                     case "remove":
+                        this.envUsers.get(msg.id)?.remove();
+                        this.envUsers.delete(msg.id);
                         break;
                     case "sync": // sync existing objects in environment 
                         msgInfo.meshes.forEach((message: any) => {
@@ -634,8 +694,11 @@ class User {
     private left: AbstractMesh;
     private right: AbstractMesh;
 
+    // user's highlight color
+    private color: Color3;
+
     // takes in user ID and JSON object with position info 
-    constructor(id: string, info: any) {
+    constructor(id: string, info: any, scene: Scene) {
         this.user = id;
         this.head = MeshBuilder.CreateBox((id + "_head"), { size: 0.3 });
         this.left = MeshBuilder.CreateSphere((id + "_left"), { segments: 8, diameter: 0.1 });
@@ -644,6 +707,14 @@ class User {
         this.head.isPickable = false;
         this.left.isPickable = false;
         this.right.isPickable = false;
+
+        this.color = Object.assign(new Color3(), info.color);
+        this.head.material = new StandardMaterial((id + "_headMat"), scene);
+        this.left.material = new StandardMaterial((id + "_leftMat"), scene);
+        this.right.material = new StandardMaterial((id + "_rightMat"), scene);
+        (<StandardMaterial>this.head.material).emissiveColor = this.color;
+        (<StandardMaterial>this.left.material).emissiveColor = this.color;
+        (<StandardMaterial>this.right.material).emissiveColor = this.color;
 
         this.update(info);
     }
@@ -654,12 +725,12 @@ class User {
         this.left.dispose();
         this.right.dispose();
 
-        var content = {
-            type: "remove",
-            content: this.user
-        };
+        //var content = {
+        //    type: "remove",
+        //    content: this.user
+        //};
 
-        Messages.sendMessage(false, JSON.stringify(content));
+        //Messages.sendMessage(false, JSON.stringify(content));
     }
 
     public update(info: any) {
