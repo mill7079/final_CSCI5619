@@ -68,6 +68,7 @@ class Game
 
     private guiPlane: AbstractMesh | null;
     private loginStatus: AbstractMesh | null;
+    private syncStatus: AbstractMesh | null;
     private black = "#070707";
     private gray = "#707070";
 
@@ -119,6 +120,7 @@ class Game
         this.guiPlane = null;
         this.loginStatus = null;
         this.failedLogin = null;
+        this.syncStatus = null;
 
         this.envUsers = new Map();
         this.envObjects = new Map();
@@ -242,8 +244,8 @@ class Game
                     }
                 }
                 Messages.sendMessage(false, JSON.stringify(remove));
-                this.client.stopClient();
                 this.client.logout();
+                this.client.stopClient();
             }
         });
 
@@ -299,6 +301,23 @@ class Game
         this.failedLogin.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
         guiTexture.addControl(this.failedLogin);
         this.failedLogin.isVisible = false;
+
+        // sync status page for even more visual feedback
+        this.syncStatus = MeshBuilder.CreatePlane("syncStatus", {}, this.scene);
+        this.syncStatus.position = this.guiPlane.position.clone();
+        this.syncStatus.isPickable = false;
+        this.syncStatus.isVisible = false;
+        
+        var syncMesh = AdvancedDynamicTexture.CreateForMesh(this.syncStatus, 512, 512);
+        syncMesh.background = this.black;
+
+        var syncing = new TextBlock();
+        syncing.text = "Updating environment...";
+        syncing.color = this.userColor.toHexString();
+        syncing.fontSize = 64;
+        syncing.textHorizontalAlignment = TextBlock.HORIZONTAL_ALIGNMENT_CENTER;
+        syncing.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
+        syncMesh.addControl(syncing);
 
 
         // keyboard to enter user/password
@@ -467,8 +486,8 @@ class Game
                 info: {
                     hpos: this.xrCamera?.position.clone(),
                     hrot: this.xrCamera?.rotation.clone(),
-                    lpos: this.leftHand.absolutePosition.clone(),
-                    rpos: this.rightHand.absolutePosition.clone(),
+                    lpos: this.leftHand.absolutePosition,
+                    rpos: this.rightHand.absolutePosition,
                     color: this.userColor
                 }
             };
@@ -500,7 +519,7 @@ class Game
                     type: "item",
                     id: id,
                     user: this.user,
-                    //mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(this.selectedObject!)),
+                    //mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(this.selectedObject!, false, false)),
                     info: { 
                         position: this.selectedObject!.absolutePosition.clone(),
                         rotation: this.selectedObject!.absoluteRotationQuaternion.toEulerAngles().clone(),
@@ -589,11 +608,13 @@ class Game
                         this.envUsers.get(msg.id)?.remove();
                         this.envUsers.delete(msg.id);
                         break;
-                    case "sync": // sync existing objects in environment 
+                    case "sync": // sync existing objects in environment
+                        this.syncStatus!.isVisible = true;
                         msgInfo.meshes.forEach((message: any) => {
                             this.updateEnv(JSON.stringify(message));
                         });
                         this.admin = false;
+                        this.syncStatus!.isVisible = false;
                         break;
                 }
             }
@@ -620,18 +641,18 @@ class Game
         }
 
         // if logged in, dispose of login GUI
-        if (this.guiPlane){
+        if (this.guiPlane){ // TODO may just need to make invisible to handle logout/login
             this.guiPlane!.dispose(false, true);
         }
 
         // start client
         await this.client.startClient({ initialSyncLimit: 10 });
-
+        
         // sync client - hopefully finishes before sync is needed
         await this.client.once('sync', (state: any, prevState: any, res: any) => {
-            console.log("client state: " + state); // state will be 'PREPARED' when the client is ready to use
+            //console.log("client state: " + state); // state will be 'PREPARED' when the client is ready to use
 
-            // create self user object
+            // create self user object for other clients
             Messages.sendMessage(false, this.createUpdate(this.user));
 
             // add message listener to room
@@ -711,10 +732,10 @@ class User {
     public update(info: any) {
         //var obj = JSON.parse(info);
 
-        Object.assign(this.head.position, info.hpos);
-        Object.assign(this.head.rotation, info.hrot);
-        Object.assign(this.left.position, info.lpos);
-        Object.assign(this.right.position, info.rpos);
+        this.head.setAbsolutePosition(Object.assign(this.head.position, info.hpos));
+        this.head.rotation = Object.assign(this.head.rotation, info.hrot);
+        this.left.setAbsolutePosition(Object.assign(this.left.position, info.lpos));
+        this.right.setAbsolutePosition(Object.assign(this.right.position, info.rpos));
     }
 
     // return JSON string
@@ -725,9 +746,9 @@ class User {
             id: this.user,
             info: {
                 hpos: this.head.position.clone(),
-                hrot: this.head.rotation.clone(),
-                lpos: this.left.position.clone(),
-                rpos: this.left.position.clone()
+                hrot: this.head.absoluteRotationQuaternion.toEulerAngles().clone(),
+                lpos: this.left.absolutePosition.clone(),
+                rpos: this.left.absolutePosition.clone()
             }
         };
 
