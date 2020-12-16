@@ -445,6 +445,9 @@ class Game
                     this.selectedObject?.setParent(this.rightHand);
                     if (this.selectedObject) {
                         Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
+
+                        // this is a test to see if it will update user's hand more actively
+                        Messages.sendMessage(false, this.createUpdate(this.user)); 
                     }
                 }
                 break;
@@ -452,6 +455,9 @@ class Game
                 this.selectedObject?.setParent(null);
                 if (this.selectedObject) {
                     Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
+
+                    // this is a test to see if it will update user's hand more actively
+                    Messages.sendMessage(false, this.createUpdate(this.user)); 
                 }
 
                 this.selectedObject = null;
