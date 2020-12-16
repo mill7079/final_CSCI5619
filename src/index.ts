@@ -23,6 +23,7 @@ import { SceneSerializer } from "@babylonjs/core/Misc/sceneSerializer";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { PointerEventTypes, PointerInfo } from "@babylonjs/core/Events/pointerEvents";
+import { Animation } from "@babylonjs/core/Animations/animation"; 
 
 import * as MATRIX from "matrix-js-sdk";
 
@@ -61,6 +62,7 @@ class Game
     private selectedObject: AbstractMesh | null;
     private prevObjPos: Vector3 | null;
     private minMove = 1;
+    private frame = 0;
 
     private client: any;
     private user = "";
@@ -73,6 +75,7 @@ class Game
 
     private envUsers: Map<string, User>;
     private envObjects: Map<string, AbstractMesh>;
+
     private userColor: Color3;
 
     //private userPosition: Vector3 | null; 
@@ -123,6 +126,7 @@ class Game
         this.envUsers = new Map();
         this.envObjects = new Map();
         this.userColor = new Color3(Math.random(), Math.random(), Math.random());
+        this.frame = 0; 
     }
 
     start() : void 
@@ -404,6 +408,7 @@ class Game
                 newMesh.position = new Vector3(2, 3, 4);
                 this.envObjects.set(newMesh.uniqueId.toString(), newMesh);
 
+
                 //var message = {
                 //    status: "create",
                 //    type: "box",
@@ -569,9 +574,71 @@ class Game
                                 // want way to attach mesh to hand of other users
 
                                 if (env_object) { // update info of item 
-                                    env_object.position = Object.assign(env_object.position, msgInfo.position);
+                                    var prev_position = env_object!.position;
+                                    this.frame = 0; 
+                                
+                                    // var pre_rotation = this.envObjects.get(msg.id)!.rotation
+                                    // var pre_scaling = this.envObjects.get(msg.id)!.scaling
+
+                                    // env_object.position = Object.assign(env_object.position, msgInfo.position);
+                                    // env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
+                                    // env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
+
+                                    // begin animation 
+                                    // find over what incremements 
+
+                                    if (msgInfo.position) {
+                                    console.log('beginning calculations to move object smoothly');
+                                    console.log('pre_postion: ', prev_position ); 
+                                    var dist = Math.sqrt(((msgInfo.position._y - prev_position._y)**2) + ((msgInfo.position._x - prev_position._x)**2) + ((msgInfo.position._z - prev_position._z)**2))
+                                    var incre = (dist / 5);  
+                                    var x_incre = (msgInfo.position._x + prev_position._x) / 10;
+                                    var y_incre = (msgInfo.position._y + prev_position._y) / 10;
+                                    var z_incre = (msgInfo.position._z + prev_position._z) / 10;
+
+                                    var object_animation = new Animation("object_animation", "position", 30, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
+
+                                    var movement_array = []; 
+                                    console.log('dist: ', dist); 
+                                    console.log('incre: ', incre); 
+                                    console.log('x_incre: ', x_incre); 
+                                    console.log('y_incre: ', y_incre); 
+                                    console.log('z_incre: ', z_incre); 
+
+                                    for (let i = 1; i < 11; i++) {  // there's something
+                                        var x: number = x_incre*i; 
+                                        var y: number = y_incre*i; 
+                                        var z: number = z_incre*i; 
+                                        console.log('frame?', this.frame); 
+                                        console.log('value?', x, y, z); 
+
+                                        movement_array.push(
+                                            {
+                                                frame: this.frame,
+                                                value: new Vector3(x, y, z)
+                                            }
+                                        )
+                                        
+                                        this.frame += 10; 
+                                      }
+
+                                    object_animation.setKeys(movement_array); 
+                                    env_object!.animations = []; 
+                                    env_object!.animations.push(object_animation); 
+
+                                    this.scene.beginAnimation(env_object, 0, 40, false, 1.0, (() => {
+                                        // this.scene.stopAnimation(env_object, 'object_animation'); 
+                                    }));
+
+                                    // env_object.position = Object.assign(env_object.position, msgInfo.position);
                                     env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
                                     env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
+
+                                    // should complete and continue like normal
+                                    console.log('movement updated successfully'); 
+                                    
+                                    this.scene.stopAllAnimations(); 
+
                                     console.log("msgInfo.selected: " + msgInfo.selected);
                                     if (msgInfo.selected) {
                                         env_object.edgesColor = Object.assign(env_object.edgesColor, msgInfo.color);
@@ -584,7 +651,7 @@ class Game
                                         console.log("other user deselected object");
                                     }
                                 }
-
+                            }
 
                                 // attempt to update meshes using same import method
                                 // appears to duplicate presynced meshes?
