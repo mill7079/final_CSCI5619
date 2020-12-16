@@ -398,30 +398,17 @@ class Game
     private onRightSqueeze(component?: WebXRControllerComponent) {
         if (component?.changes.pressed) {
             if (component?.pressed) {
+
+                // create random polyhedron
                 var num = Math.round(Math.random() * 14);
-                //var newMesh = MeshBuilder.CreateBox("cube", { size: 1 }, this.scene);
                 var newMesh = MeshBuilder.CreatePolyhedron("name", { type: num, size: 1 }, this.scene);
                 newMesh.position = new Vector3(2, 3, 4);
                 this.envObjects.set(newMesh.uniqueId.toString(), newMesh);
 
-                //var message = {
-                //    status: "create",
-                //    type: "box",
-                //    id: newMesh.name,
-                //    user: this.user,
-                //    info: {
-                //        position: newMesh.position.clone(),
-                //        rotation: newMesh.rotation.clone(),
-                //        opts: {
-                //            size: 1
-                //        }
-                //    }
-                //};
-
+                // send serialized mesh to other clients
                 let message = {
                     status: "create",
                     type: "item",
-                    //id: newMesh.name,
                     id: newMesh.uniqueId.toString(),
                     user: this.user,
                     mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(newMesh)),
@@ -431,6 +418,7 @@ class Game
                 };
 
                 Messages.sendMessage(false, JSON.stringify(message));
+                //Messages.sendMessage(false, this.createUpdate(this.user));
             }
         }
     }
@@ -458,6 +446,8 @@ class Game
                 this.prevObjPos = null;
                 break;
         }
+
+        //Messages.sendMessage(false, this.createUpdate(this.user));
     }
 
     // writes update message in correct format
@@ -566,16 +556,16 @@ class Game
                                     env_object.position = Object.assign(env_object.position, msgInfo.position);
                                     env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
                                     env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
-                                    console.log("msgInfo.selected: " + msgInfo.selected);
+                                    //console.log("msgInfo.selected: " + msgInfo.selected);
                                     if (msgInfo.selected) {
                                         env_object.edgesColor = Object.assign(env_object.edgesColor, msgInfo.color);
                                         env_object.enableEdgesRendering();
                                         env_object.isPickable = false;
-                                        console.log("other user selected object");
+                                        //console.log("other user selected object");
                                     } else {
                                         env_object.disableEdgesRendering();
                                         env_object.isPickable = true;
-                                        console.log("other user deselected object");
+                                        //console.log("other user deselected object");
                                     }
                                 }
 
@@ -656,27 +646,6 @@ class Game
             
             this.loginStatus!.dispose(false, true);
         });
-
-        // add message listener to room - don't listen to messages in other rooms
-        //this.client.on("Room.timeline", (event: any, room: any, toStartOfTimeline: any) => {
-        //this.client.on("event", (event: any) => {
-        //    //if (room.roomId == this.room && ("@" + this.user + ":matrix.org") != event.getSender()) {
-        //    console.log("sync state: " + this.client.getSyncState());
-        //    if (event.getRoomId() == this.room && ("@" + this.user + ":matrix.org") != event.getSender() && this.client.getSyncState() == "SYNCING") {
-        //        //console.log(event.event.content.body);
-        //        //console.log("room: " + room.roomId);
-
-        //        // send messages to function to check if it's an update message
-        //        if (event.event.type == 'm.room.message') {
-        //            this.updateEnv(event.event.content.body);
-        //            //console.log("body: " + event.event.content.body);
-        //            if (event.event.content.body){
-        //                event.event.content.body = event.event.content.body.trim()
-        //                var body = JSON.parse(event.event.content.body);
-        //            }
-        //        }
-        //    }
-        //});
     }
 }
 /******* End of the Game class ******/
