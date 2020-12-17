@@ -628,11 +628,14 @@ class Game
 
                                     this.scene.beginAnimation(env_object, 0, 40, false, 1.0, (() => {
                                         // this.scene.stopAnimation(env_object, 'object_animation'); 
+                                        if (env_object){
+                                        env_object.position = Object.assign(env_object.position, msgInfo.position);
+                                        env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
+                                        env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
+                                        }
+                                        
                                     }));
 
-                                    // env_object.position = Object.assign(env_object.position, msgInfo.position);
-                                    env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
-                                    env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
 
                                     // should complete and continue like normal
                                     console.log('movement updated successfully'); 
