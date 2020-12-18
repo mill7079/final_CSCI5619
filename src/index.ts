@@ -606,7 +606,7 @@ class Game
 
     // updates environment according to message received from room
     private updateEnv(message: string) {
-        console.log("message: " + message);
+        //console.log("message: " + message);
         var msg = JSON.parse(message.trim());
 
         // note: since the type is an int, testing for !type is going to be a false positive if the type is user
@@ -625,9 +625,7 @@ class Game
                 var item = this.envObjects.get(msg.id);
 
                 if (!item) {  // add new item to room
-                    console.log("add new item");
                     SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
-                    console.log(this.scene.meshes);
                     this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
                 } else {  // update existing item
                     if (msg.mesh?.length == "") {  // update mesh positions only
@@ -673,7 +671,6 @@ class Game
                 break;
             case MessageType.sync:
                 if (this.admin) {  // admin set to true at first, and actual admin will never see a sync message, but other users shouldn't sync
-                    console.log("sync message*************************************meshes: " + msg.meshes);
                     this.syncStatus!.isVisible = true;
                     msg.meshes.forEach((message: any) => {
                         this.updateEnv(JSON.stringify(message));
