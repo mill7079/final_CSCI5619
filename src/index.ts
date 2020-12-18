@@ -65,6 +65,7 @@ class Game
     private frame = 0;
     private previousLeftPosition: Vector3 | null; 
     private previousRightPosition: Vector3 | null; 
+    private isUpdateComplete: Boolean | null;  
 
     private arrayMovement: Map<string, Array<Vector3>>; 
     private movementArray: Array<Vector3>; 
@@ -142,6 +143,7 @@ class Game
         this.movementArray = []; 
         this.updateCount = 0; 
         this.arrayMovement = new Map();
+        this.isUpdateComplete = true; 
     }
 
     start() : void 
@@ -669,6 +671,8 @@ class Game
                                 break;
 
                             case "item":
+
+                                if (this.isUpdateComplete){
                                 var env_object = this.envObjects.get(msg.id);
                                 // want way to attach mesh to hand of other users
 
@@ -686,6 +690,8 @@ class Game
                                     var movement_with_frame = []; 
                                     var frame = 0; 
 
+                                    this.isUpdateComplete = false; 
+
                                     if (movement_array){
 
                                         for (let vector of movement_array){
@@ -699,17 +705,18 @@ class Game
                                                     value: pos
                                                 }
                                             )
-                                            frame = frame + 10; 
+                                            frame = frame + 30; 
                                         }
 
                                     object_animation.setKeys(movement_with_frame); 
                                     env_object!.animations = []; 
                                     env_object!.animations.push(object_animation); 
 
-                                    this.scene.beginAnimation(env_object, 0, frame-30, false, 0.3, ()=>
+                                    this.scene.beginAnimation(env_object, 0, frame-30, false, 1, ()=>
                                     {
                                         console.log('animation complete'); 
                                         frame = 0; 
+                                        this.isUpdateComplete = true; 
                                     });
 
                                     // env_object.position = Object.assign(env_object.position, msgInfo.position[-1]); // will go to most recent position
@@ -744,16 +751,18 @@ class Game
                                 //SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
                                 //this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
                             }
+                        
+                        }
                         break;
                     case "remove":
                         this.envUsers.get(msg.id)?.remove();
                         this.envUsers.delete(msg.id);
                         break;
                     case "sync": // sync existing objects in environment 
-                        // msgInfo.meshes.forEach((message: any) => {
-                        //     this.updateEnv(JSON.stringify(message));
-                        // });
-                        // this.admin = false;
+                        msgInfo.meshes.forEach((message: any) => {
+                            this.updateEnv(JSON.stringify(message));
+                        });
+                        this.admin = false;
                         break;
                 }
             }
