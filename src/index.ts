@@ -684,7 +684,7 @@ class Game
                                     var object_animation = new Animation("object_animation", "position", 30, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
 
                                     var movement_array = msgInfo.position; 
-                                    movement_array = movement_array.reverse();  // the array is backwards so gotta recorrect that
+                                    // movement_array = movement_array.reverse();  // the array is backwards so gotta recorrect that
 
                                     console.log('movement array! ', movement_array); 
                                     var movement_with_frame = []; 
@@ -712,16 +712,22 @@ class Game
                                     env_object!.animations = []; 
                                     env_object!.animations.push(object_animation); 
 
-                                    this.scene.beginAnimation(env_object, 0, frame-30, false, 1, ()=>
+                                    this.scene.beginAnimation(env_object, 0, frame-30, false, 3, ()=>
                                     {
                                         console.log('animation complete'); 
                                         frame = 0; 
-                                        this.isUpdateComplete = true; 
+                                        this.isUpdateComplete = true;
+
+
+                                        // intended to update positions after animation is complete
+                                        env_object!.position = Object.assign(env_object!.position, movement_array[-1]); // will go to most recent position
+                                        env_object!.rotation = Object.assign(env_object!.rotation, msgInfo.rotation);
+                                        env_object!.scaling = Object.assign(env_object!.scaling, msgInfo.scaling);
+
+                                        this.movementArray = [];
+                                        this.arrayMovement.set(msg.id, movement_array[-1]); 
                                     });
 
-                                    // env_object.position = Object.assign(env_object.position, msgInfo.position[-1]); // will go to most recent position
-                                    // env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
-                                    // env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
 
                                     // should complete and continue like normal
 
