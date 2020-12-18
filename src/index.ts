@@ -29,6 +29,7 @@ import * as MATRIX from "matrix-js-sdk";
 // Side effects
 import "@babylonjs/core/Helpers/sceneHelpers";
 import "@babylonjs/inspector";
+import "@babylonjs/loaders";
 
 // handle message sending, given a JSON string representation
 module Messages {
@@ -412,12 +413,6 @@ class Game
         //    Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
         //    this.prevObjPos = this.selectedObject.absolutePosition.clone();
         //}
-
-
-        //if (this.selectedObject != null) {
-        //    //console.log("sending message!");
-        //    Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
-        //}
     }
 
     private processControllerInput() {
@@ -628,6 +623,7 @@ class Game
                     SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
                     this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
                 } else {  // update existing item
+                    console.log("update item. mesh: " + msg.mesh);
                     if (msg.mesh?.length == "") {  // update mesh positions only
                         item.position = Object.assign(item.position, msg.info.position);
                         item.rotation = Object.assign(item.rotation, msg.info.rotation);
@@ -663,7 +659,10 @@ class Game
 
                     // add user to list, update new user with this user's info
                     this.envUsers.set(msg.id, new User(msg.id, msg.info, this.scene));
+                    console.log("add new user: " + msg.id);
+                    console.log("message: " + message);
                     Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
+                    console.log("send this user: " + this.user);
 
                 } else { // update existing user
                     user.update(msg.info);
