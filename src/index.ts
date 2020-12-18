@@ -63,6 +63,11 @@ class Game
     private prevObjPos: Vector3 | null;
     private minMove = 1;
     private frame = 0;
+    private previousLeftPosition: Vector3 | null; 
+    private previousRightPosition: Vector3 | null; 
+
+    private arrayMovement: Map<string, Array<Vector3>>; 
+    private movementArray: Array<Vector3>; 
 
     private client: any;
     private user = "";
@@ -86,6 +91,7 @@ class Game
     private failedLogin: TextBlock | null;
 
     private admin = true;
+    private updateCount = 0; 
 
     constructor()
     {
@@ -98,6 +104,9 @@ class Game
         // Creates a basic Babylon Scene object
         this.scene = new Scene(this.engine);   
 
+        // Enable collisions in the scene
+        this.scene.collisionsEnabled = true; 
+
         this.xrCamera = null;
         this.leftController = null;
         this.rightController = null;
@@ -109,6 +118,9 @@ class Game
         this.rightHand.isVisible = false;
         this.selectedObject = null;
         this.prevObjPos = null;
+
+        this.previousLeftPosition = null; 
+        this.previousRightPosition = null; 
 
         // set up positions 
         //this.userPosition = null; 
@@ -127,6 +139,9 @@ class Game
         this.envObjects = new Map();
         this.userColor = new Color3(Math.random(), Math.random(), Math.random());
         this.frame = 0; 
+        this.movementArray = []; 
+        this.updateCount = 0; 
+        this.arrayMovement = new Map();
     }
 
     start() : void 
@@ -158,6 +173,9 @@ class Game
 
         // This attaches the camera to the canvas
         camera.attachControl(this.canvas, true);
+
+        // Enable collisions for camera 
+        camera.checkCollisions = true; 
 
        // Create a point light
         var pointLight = new PointLight("pointLight", new Vector3(0, 2.5, 0), this.scene);
@@ -214,6 +232,7 @@ class Game
                 this.rightController = inputSource;
                 this.rightHand.parent = this.rightController.grip!;
                 this.rightHand.isVisible = true;
+                
             }
             else 
             {
@@ -382,6 +401,32 @@ class Game
     {
         this.processControllerInput();
 
+        if (this.selectedObject) {
+            this.updateCount = this.updateCount + 1; 
+
+            if (this.updateCount % 30 != 0){   // let's make it do this only every 30 frames 
+            console.log('pushing selected object positions during each frame ..'); 
+            this.movementArray.push(this.selectedObject.getAbsolutePosition().clone()); 
+            } 
+        }
+
+        // intends to encompass broader span of movements from controller
+
+        // if (this.previousRightPosition && this.rightHand && this.previousLeftPosition && this.leftHand){
+        // var position_difference = this.calc_position_difference(this.previousRightPosition, this.rightHand.position.clone(), this.previousLeftPosition, this.leftHand.position.clone()); 
+        // // var position_difference_left = this.calc_position_difference(this.previousLeftPosition, this.leftHand.position.clone()); 
+
+        //     if (position_difference  > 0.4){
+        //         console.log('should be updating position'); 
+        //         Messages.sendMessage(false, this.createUpdate(this.user)); 
+        //     }
+
+        // } 
+
+
+        // should update the user hands all the time (may break it so might remove)
+        
+
         //if (this.selectedObject && Vector3.Distance(this.selectedObject!.absolutePosition, this.prevObjPos!) >= this.minMove) {
         //    console.log("update time");
         //    Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
@@ -406,8 +451,12 @@ class Game
                 //var newMesh = MeshBuilder.CreateBox("cube", { size: 1 }, this.scene);
                 var newMesh = MeshBuilder.CreatePolyhedron("name", { type: num, size: 1 }, this.scene);
                 newMesh.position = new Vector3(2, 3, 4);
+                newMesh.checkCollisions = true; 
+                
+                this.movementArray.push(newMesh.position); 
                 this.envObjects.set(newMesh.uniqueId.toString(), newMesh);
 
+                this.arrayMovement.set(newMesh.uniqueId.toString(), this.movementArray);
 
                 //var message = {
                 //    status: "create",
@@ -446,27 +495,48 @@ class Game
             case PointerEventTypes.POINTERDOWN:
                 if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo.pickedMesh?.name != "guiPlane") {
                     this.selectedObject = pointerInfo.pickInfo.pickedMesh;
-                    this.prevObjPos = this.selectedObject!.absolutePosition.clone();
+                    // this.prevObjPos = this.selectedObject!.absolutePosition.clone();
                     this.selectedObject?.setParent(this.rightHand);
-                    if (this.selectedObject) {
-                        Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
 
-                        // this is a test to see if it will update user's hand more actively
-                        Messages.sendMessage(false, this.createUpdate(this.user)); 
-                    }
+
+                    // if (this.selectedObject) {
+            
+                    //     var meshArrayOfMovement = this.arrayMovement.get(this.selectedObject?.uniqueId.toString()); 
+                    //     console.log('processing pointer info: ', meshArrayOfMovement); 
+
+                    //     if (meshArrayOfMovement){
+                    //     meshArrayOfMovement!.push(this.selectedObject.getAbsolutePosition()); 
+                    //     this.arrayMovement.set(this.selectedObject.uniqueId.toString(), meshArrayOfMovement);
+                    //     console.log('successfully added new position to array', this.arrayMovement); 
+                    //     // Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
+
+                    //     // this is a test to see if it will update user's hand more actively
+                    //     // Messages.sendMessage(false, this.createUpdate(this.user)); 
+                    //     }
+                    // }
                 }
+
+
                 break;
             case PointerEventTypes.POINTERUP:
                 this.selectedObject?.setParent(null);
                 if (this.selectedObject) {
+
+                    this.arrayMovement.set(this.selectedObject.uniqueId.toString(), this.movementArray);
+                    console.log('successfully added new array to map', this.arrayMovement); 
+                    Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
+                    this.arrayMovement.set(this.selectedObject.uniqueId.toString(), [this.selectedObject.getAbsolutePosition().clone()]) // want to change back to 
                     Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
 
                     // this is a test to see if it will update user's hand more actively
-                    Messages.sendMessage(false, this.createUpdate(this.user)); 
+                    // Messages.sendMessage(false, this.createUpdate(this.user)); 
                 }
 
+    
                 this.selectedObject = null;
-                this.prevObjPos = null;
+                // this.prevObjPos = null;
+                this.updateCount = 0; 
+                
                 break;
         }
     }
@@ -487,6 +557,11 @@ class Game
                     color: this.userColor
                 }
             };
+
+            this.previousRightPosition = this.rightHand.absolutePosition.clone();
+            this.previousLeftPosition = this.leftHand.absolutePosition.clone(); 
+
+
         } else if (id == "sync") {
             var meshes : any[] = [];
             this.envObjects.forEach((mesh, id) => {
@@ -510,6 +585,23 @@ class Game
             };
         } else { // write update message for item
             if (this.selectedObject){
+                // ret = {
+                //     status: "update",
+                //     type: "item",
+                //     id: id,
+                //     user: this.user,
+                //     //mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(this.selectedObject!)),
+                //     info: { 
+                //         position: this.selectedObject!.absolutePosition.clone(),
+                //         rotation: this.selectedObject!.absoluteRotationQuaternion.toEulerAngles().clone(),
+                //         scaling: this.selectedObject!.scaling.clone(),
+                //         selected: this.selectedObject.parent ? true : false,
+                //         color: this.userColor
+                //     }
+                // };
+
+                console.log('attempting to update .. ', this.arrayMovement.get(this.selectedObject.uniqueId.toString())); 
+
                 ret = {
                     status: "update",
                     type: "item",
@@ -517,7 +609,7 @@ class Game
                     user: this.user,
                     //mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(this.selectedObject!)),
                     info: { 
-                        position: this.selectedObject!.absolutePosition.clone(),
+                        position: this.arrayMovement.get(this.selectedObject.uniqueId.toString()),  // attempt to get this to be an array 
                         rotation: this.selectedObject!.absoluteRotationQuaternion.toEulerAngles().clone(),
                         scaling: this.selectedObject!.scaling.clone(),
                         selected: this.selectedObject.parent ? true : false,
@@ -545,9 +637,16 @@ class Game
                         // import mesh from serialized mesh
                         SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
 
+                        // enable collisions for mesh 
+                        var initial_array = []
+                        var initial_position = this.scene.meshes[this.scene.meshes.length - 1].getAbsolutePosition().clone();
+                        initial_array.push(initial_position); 
+
+                        console.log('initial array ', initial_array); 
                         // add imported mesh to list with its unique id
                         //let newMesh = this.scene.meshes[this.scene.meshes.length - 1];
                         this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
+                        this.arrayMovement.set(msg.id, initial_array); 
 
                         break;
                     case "update":
@@ -574,73 +673,54 @@ class Game
                                 // want way to attach mesh to hand of other users
 
                                 if (env_object) { // update info of item 
-                                    var prev_position = env_object!.position;
+                                    // var prev_position = env_object!.position;
                                     this.frame = 0; 
-                                
-                                    // var pre_rotation = this.envObjects.get(msg.id)!.rotation
-                                    // var pre_scaling = this.envObjects.get(msg.id)!.scaling
-
-                                    // env_object.position = Object.assign(env_object.position, msgInfo.position);
-                                    // env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
-                                    // env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
-
-                                    // begin animation 
-                                    // find over what incremements 
-
                                     if (msgInfo.position) {
-                                    console.log('beginning calculations to move object smoothly');
-                                    console.log('pre_postion: ', prev_position ); 
-                                    var dist = Math.sqrt(((msgInfo.position._y - prev_position._y)**2) + ((msgInfo.position._x - prev_position._x)**2) + ((msgInfo.position._z - prev_position._z)**2))
-                                    var incre = (dist / 5);  
-                                    var x_incre = (msgInfo.position._x + prev_position._x) / 10;
-                                    var y_incre = (msgInfo.position._y + prev_position._y) / 10;
-                                    var z_incre = (msgInfo.position._z + prev_position._z) / 10;
 
                                     var object_animation = new Animation("object_animation", "position", 30, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
 
-                                    var movement_array = []; 
-                                    console.log('dist: ', dist); 
-                                    console.log('incre: ', incre); 
-                                    console.log('x_incre: ', x_incre); 
-                                    console.log('y_incre: ', y_incre); 
-                                    console.log('z_incre: ', z_incre); 
+                                    var movement_array = msgInfo.position; 
+                                    movement_array = movement_array.reverse();  // the array is backwards so gotta recorrect that
 
-                                    for (let i = 1; i < 11; i++) {  // there's something
-                                        var x: number = x_incre*i; 
-                                        var y: number = y_incre*i; 
-                                        var z: number = z_incre*i; 
-                                        console.log('frame?', this.frame); 
-                                        console.log('value?', x, y, z); 
+                                    console.log('movement array! ', movement_array); 
+                                    var movement_with_frame = []; 
+                                    var frame = 0; 
 
-                                        movement_array.push(
-                                            {
-                                                frame: this.frame,
-                                                value: new Vector3(x, y, z)
-                                            }
-                                        )
-                                        
-                                        this.frame += 10; 
-                                      }
+                                    if (movement_array){
 
-                                    object_animation.setKeys(movement_array); 
+                                        for (let vector of movement_array){
+                                            console.log('vector ', vector); 
+                                            console.log('frame: ', frame); 
+                                            var pos = new Vector3(vector._x, vector._y, vector._z); 
+
+                                            movement_with_frame.push(
+                                                {
+                                                    frame: frame, 
+                                                    value: pos
+                                                }
+                                            )
+                                            frame = frame + 10; 
+                                        }
+
+                                    object_animation.setKeys(movement_with_frame); 
                                     env_object!.animations = []; 
                                     env_object!.animations.push(object_animation); 
 
-                                    this.scene.beginAnimation(env_object, 0, 40, false, 1.0, (() => {
-                                        // this.scene.stopAnimation(env_object, 'object_animation'); 
-                                        if (env_object){
-                                        env_object.position = Object.assign(env_object.position, msgInfo.position);
-                                        env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
-                                        env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
-                                        }
-                                        
-                                    }));
+                                    this.scene.beginAnimation(env_object, 0, frame-30, false, 0.3, ()=>
+                                    {
+                                        console.log('animation complete'); 
+                                        frame = 0; 
+                                    });
 
+                                    // env_object.position = Object.assign(env_object.position, msgInfo.position[-1]); // will go to most recent position
+                                    // env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
+                                    // env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
 
                                     // should complete and continue like normal
+
                                     console.log('movement updated successfully'); 
                                     
-                                    this.scene.stopAllAnimations(); 
+                                    // this.scene.stopAllAnimations(); 
 
                                     console.log("msgInfo.selected: " + msgInfo.selected);
                                     if (msgInfo.selected) {
@@ -654,7 +734,7 @@ class Game
                                         console.log("other user deselected object");
                                     }
                                 }
-                            }
+                                }
 
                                 // attempt to update meshes using same import method
                                 // appears to duplicate presynced meshes?
@@ -663,22 +743,23 @@ class Game
 
                                 //SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
                                 //this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
-                        }
+                            }
                         break;
                     case "remove":
                         this.envUsers.get(msg.id)?.remove();
                         this.envUsers.delete(msg.id);
                         break;
                     case "sync": // sync existing objects in environment 
-                        msgInfo.meshes.forEach((message: any) => {
-                            this.updateEnv(JSON.stringify(message));
-                        });
-                        this.admin = false;
+                        // msgInfo.meshes.forEach((message: any) => {
+                        //     this.updateEnv(JSON.stringify(message));
+                        // });
+                        // this.admin = false;
                         break;
                 }
             }
         }
     }
+}
 
     private async connect(user: string, pass: string) {
         // login
