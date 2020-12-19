@@ -23,7 +23,8 @@ import { SceneSerializer } from "@babylonjs/core/Misc/sceneSerializer";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { PointerEventTypes, PointerInfo } from "@babylonjs/core/Events/pointerEvents";
-import { Animation } from "@babylonjs/core/Animations/animation"; 
+import { Animation } from "@babylonjs/core/Animations/animation";
+import { LinesMesh } from "@babylonjs/core/Meshes/linesMesh";
 
 import * as MATRIX from "matrix-js-sdk";
 
@@ -813,6 +814,12 @@ class User {
     private left: AbstractMesh;
     private right: AbstractMesh;
 
+    // add a body and arms
+    private body: AbstractMesh;
+    private shoulders: Vector3[] = [];
+    private leftArm: LinesMesh;
+    private rightArm: LinesMesh;
+
     // user's highlight color
     private color: Color3;
 
@@ -823,6 +830,18 @@ class User {
         this.left = MeshBuilder.CreateSphere((id + "_left"), { segments: 8, diameter: 0.1 });
         this.right = MeshBuilder.CreateSphere((id + "_right"), { segments: 8, diameter: 0.1 });
 
+        this.body = MeshBuilder.CreateBox((id + "_body"), { width: 0.2, height: 0.4, depth: 0.05 });
+        this.body.parent = this.head;
+        this.body.position = new Vector3(0, -0.5, 0);
+        this.shoulders.push(this.head.absolutePosition.clone());
+        this.shoulders.push(this.head.absolutePosition.clone());
+        this.shoulders[0].x -= 0.1;
+        this.shoulders[0].y -= 0.3;
+        this.shoulders[0].x += 0.1;
+        this.shoulders[0].y -= 0.3;
+        this.leftArm = MeshBuilder.CreateLines("leftArm", { points: [this.shoulders[0], this.left.absolutePosition.clone()], updatable: true });
+        this.rightArm = MeshBuilder.CreateLines("rightArm", { points: [this.shoulders[1], this.right.absolutePosition.clone()], updatable: true });
+
         this.head.isPickable = false;
         this.left.isPickable = false;
         this.right.isPickable = false;
@@ -831,9 +850,11 @@ class User {
         this.head.material = new StandardMaterial((id + "_headMat"), scene);
         this.left.material = new StandardMaterial((id + "_leftMat"), scene);
         this.right.material = new StandardMaterial((id + "_rightMat"), scene);
+        this.body.material = new StandardMaterial((id + "_bodyMat"), scene);
         (<StandardMaterial>this.head.material).emissiveColor = this.color;
         (<StandardMaterial>this.left.material).emissiveColor = this.color;
         (<StandardMaterial>this.right.material).emissiveColor = this.color;
+        (<StandardMaterial>this.body.material).emissiveColor = this.color;
 
         this.update(info);
     }
@@ -843,6 +864,8 @@ class User {
         this.head.dispose();
         this.left.dispose();
         this.right.dispose();
+        this.body.dispose();
+        this.shoulders.length = 0;
     }
 
     // updates position of user object
@@ -851,6 +874,16 @@ class User {
         this.head.rotation = Object.assign(this.head.rotation, info.hrot);
         this.left.setAbsolutePosition(Object.assign(this.left.position, info.lpos));
         this.right.setAbsolutePosition(Object.assign(this.right.position, info.rpos));
+
+
+        this.shoulders[0] = this.head.absolutePosition.clone();
+        this.shoulders[0].x -= 0.1;
+        this.shoulders[0].y -= 0.3;
+        this.shoulders[1] = this.head.absolutePosition.clone();
+        this.shoulders[1].x += 0.1;
+        this.shoulders[1].y -= 0.3;
+        this.leftArm = MeshBuilder.CreateLines("leftArm", { points: [this.shoulders[0], this.left.absolutePosition.clone()], updatable: true, instance: this.leftArm });
+        this.rightArm = MeshBuilder.CreateLines("rightArm", { points: [this.shoulders[1], this.right.absolutePosition.clone()], updatable: true, instance: this.rightArm });
     }
 }
 
