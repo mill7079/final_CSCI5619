@@ -93,6 +93,7 @@ class Game
 
     private admin = true;
     private updateCount = 0; 
+    private totalFrameCount = 0; 
 
     constructor()
     {
@@ -140,6 +141,7 @@ class Game
         this.envObjects = new Map();
         this.userColor = new Color3(Math.random(), Math.random(), Math.random());
         this.frame = 0; 
+        this.totalFrameCount = 0; 
         this.movementArray = []; 
         this.updateCount = 0; 
         this.arrayMovement = new Map();
@@ -452,13 +454,13 @@ class Game
                 var num = Math.round(Math.random() * 14);
                 //var newMesh = MeshBuilder.CreateBox("cube", { size: 1 }, this.scene);
                 var newMesh = MeshBuilder.CreatePolyhedron("name", { type: num, size: 1 }, this.scene);
-                newMesh.position = new Vector3(2, 3, 4);
+                // newMesh.position = new Vector3(2, 3, 4);
                 newMesh.checkCollisions = true; 
                 
-                this.movementArray.push(newMesh.position); 
+                // this.movementArray.push(newMesh.position); 
                 this.envObjects.set(newMesh.uniqueId.toString(), newMesh);
 
-                this.arrayMovement.set(newMesh.uniqueId.toString(), this.movementArray);
+                // this.arrayMovement.set(newMesh.uniqueId.toString(), this.movementArray);
 
                 //var message = {
                 //    status: "create",
@@ -500,6 +502,13 @@ class Game
                     // this.prevObjPos = this.selectedObject!.absolutePosition.clone();
                     this.selectedObject?.setParent(this.rightHand);
 
+                    if (this.selectedObject){
+                    this.frame = 0; 
+                    this.movementArray = []; 
+                    this.movementArray.push(this.selectedObject?.getAbsolutePosition())
+                    Messages.sendMessage(false, this.createUpdate(this.selectedObject!.uniqueId.toString()));
+
+                    }
 
                     // if (this.selectedObject) {
             
@@ -513,7 +522,7 @@ class Game
                     //     // Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
 
                     //     // this is a test to see if it will update user's hand more actively
-                    //     // Messages.sendMessage(false, this.createUpdate(this.user)); 
+                    Messages.sendMessage(false, this.createUpdate(this.user)); 
                     //     }
                     // }
                 }
@@ -526,18 +535,20 @@ class Game
 
                     this.arrayMovement.set(this.selectedObject.uniqueId.toString(), this.movementArray);
                     console.log('successfully added new array to map', this.arrayMovement); 
-                    Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
-                    this.arrayMovement.set(this.selectedObject.uniqueId.toString(), [this.selectedObject.getAbsolutePosition().clone()]) // want to change back to 
-                    Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
+
+                    Messages.sendMessage(false, this.createUpdate(this.selectedObject!.uniqueId.toString()));
+                    // this.arrayMovement.set(this.selectedObject.uniqueId.toString(), [this.selectedObject.getAbsolutePosition().clone()]) // want to change back to 
+                    // Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
 
                     // this is a test to see if it will update user's hand more actively
-                    // Messages.sendMessage(false, this.createUpdate(this.user)); 
+                    Messages.sendMessage(false, this.createUpdate(this.user)); 
                 }
 
     
                 this.selectedObject = null;
                 // this.prevObjPos = null;
                 this.updateCount = 0; 
+                
                 
                 break;
         }
@@ -712,7 +723,9 @@ class Game
                                     env_object!.animations = []; 
                                     env_object!.animations.push(object_animation); 
 
-                                    this.scene.beginAnimation(env_object, 0, frame-30, false, 3, ()=>
+                                    console.log('beginning animation'); 
+
+                                    this.scene.beginAnimation(env_object, 0, frame-30, false, 6, ()=>
                                     {
                                         console.log('animation complete'); 
                                         frame = 0; 
@@ -724,8 +737,32 @@ class Game
                                         env_object!.rotation = Object.assign(env_object!.rotation, msgInfo.rotation);
                                         env_object!.scaling = Object.assign(env_object!.scaling, msgInfo.scaling);
 
-                                        this.movementArray = [];
-                                        this.arrayMovement.set(msg.id, movement_array[-1]); 
+                                        this.scene.removeAnimation(object_animation); 
+
+                                        // this.arrayMovement.set(msgInfo.id, [env_object!.position]);
+                            
+                                        // console.log('attempting to update .. ', this.arrayMovement.get(msgInfo.id)); 
+                            
+                                        //     var ret = {
+                                        //         status: "update",
+                                        //         type: "item",
+                                        //         id: msgInfo.id,
+                                        //         user: msgInfo.user,
+                                        //         //mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(this.selectedObject!)),
+                                        //         info: { 
+                                        //             position: this.arrayMovement.get(msgInfo.id),  // attempt to get this to be an array 
+                                        //             rotation: env_object!.absoluteRotationQuaternion.toEulerAngles().clone(),
+                                        //             scaling: env_object!.scaling.clone(),
+                                        //             selected: env_object?.parent ? true : false,
+                                        //             color: this.userColor
+                                        //         }
+                                        //     };
+
+                                            // var jsonItem = JSON.stringify(ret); 
+
+                                            // console.log('message to reinitialize array has been sent'); 
+                                            // Messages.sendMessage(false, jsonItem);
+
                                     });
 
 
@@ -748,17 +785,10 @@ class Game
                                     }
                                 }
                                 }
-
-                                // attempt to update meshes using same import method
-                                // appears to duplicate presynced meshes?
-                                //this.envObjects.get(msg.id)?.dispose();
-                                //this.envObjects.delete(msg.id);
-
-                                //SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
-                                //this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
                             }
                         
                         }
+
                         break;
                     case "remove":
                         this.envUsers.get(msg.id)?.remove();
