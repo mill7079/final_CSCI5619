@@ -89,6 +89,7 @@ class Game
     private envObjects: Map<string, AbstractMesh>;
     private userColor: Color3;
     private isUpdateComplete: Boolean | null;
+    private hasMoved: boolean = false;
 
     private failedLogin: TextBlock | null;
 
@@ -210,12 +211,10 @@ class Game
         // Assigns the web XR camera to a member variable
         this.xrCamera = xrHelper.baseExperience.camera;
 
+        // Update user after teleportation
         this.xrCamera.onAfterCameraTeleport.add((eventData, state) => {
-            //this.rightHand.material = new StandardMaterial("rightMat", this.scene);
-            //(<StandardMaterial>this.rightHand.material).emissiveColor = new Color3(0.5, 0, 0.5);
-
-            //Messages.sendMessage(false, this.createUpdate(this.user));
             Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
+            this.hasMoved = true;
         });
 
 
@@ -275,10 +274,13 @@ class Game
                 //    }
                 //}
                 //Messages.sendMessage(false, JSON.stringify(remove));  // TODO
+                Messages.sendMessage(false, this.createMessage(MessageType.remove, this.user));
                 this.client.logout();
                 this.client.stopClient();
             }
         });
+
+        
 
         
         // create login gui
@@ -418,14 +420,19 @@ class Game
     // The main update loop will be executed once per frame before the scene is rendered
     private update() : void
     {
+        // attempt to fix controllers not moving after teleportation
+        if (this.hasMoved) {
+            Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
+            this.hasMoved = false;
+        }
+
         this.processControllerInput();
 
-        // track object positionn/rotation updates
+        // track object position/rotation updates
         if (this.selectedObject) {
             this.frame++;
 
-            if (this.frame % 20 == 0){   // let's make it do this only every 20 frames 
-                //console.log('pushing selected object positions during each frame ..'); 
+            if (this.frame % 20 == 0){   // record position once every 20 frames
                 this.movementArray.push(this.selectedObject.getAbsolutePosition().clone());
                 this.rotationArray.push(this.selectedObject.absoluteRotationQuaternion.toEulerAngles().clone());
             } 
@@ -845,6 +852,9 @@ class User {
         this.head.isPickable = false;
         this.left.isPickable = false;
         this.right.isPickable = false;
+        this.body.isPickable = false;
+        this.leftArm.isPickable = false;
+        this.rightArm.isPickable = false;
 
         this.color = Object.assign(new Color3(), info.color);
         this.head.material = new StandardMaterial((id + "_headMat"), scene);
