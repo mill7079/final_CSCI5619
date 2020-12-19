@@ -53,7 +53,8 @@ module Messages {
 enum MessageType {
     user,
     item,
-    sync
+    sync,
+    remove
 }
 
 class Game 
@@ -88,6 +89,11 @@ class Game
     private failedLogin: TextBlock | null;
 
     private admin = true;
+
+    // in-environment GUI items
+    //private colorWidget: ;
+    //private textureWidget;
+    private destroyWidget: AbstractMesh;
 
     constructor()
     {
@@ -129,6 +135,14 @@ class Game
         this.envUsers = new Map();
         this.envObjects = new Map();
         this.userColor = new Color3(Math.random(), Math.random(), Math.random());
+
+
+        // grab this to destroy the selected object
+        this.destroyWidget = MeshBuilder.CreateSphere("destroyWidget", { segments: 4, diameter: 0.05 }, this.scene);
+        this.destroyWidget.material = new StandardMaterial("destroyMaterial", this.scene);
+        (<StandardMaterial>this.destroyWidget.material).diffuseColor = new Color3(0.5, 0, 0);
+        this.destroyWidget.isPickable = false;
+        this.destroyWidget.isVisible = false;
     }
 
     start() : void 
@@ -217,6 +231,9 @@ class Game
                 this.rightController = inputSource;
                 this.rightHand.parent = this.rightController.grip!;
                 this.rightHand.isVisible = true;
+
+                this.destroyWidget.parent = this.rightController.pointer;
+                this.destroyWidget.position = new Vector3(0, -0.07, -0.11);
             }
             else 
             {
@@ -411,7 +428,24 @@ class Game
     }
 
     private processControllerInput() {
+        this.onLeftSqueeze(this.leftController?.motionController?.getComponent("xr-standard-squeeze"));
         this.onRightSqueeze(this.rightController?.motionController?.getComponent("xr-standard-squeeze"));
+    }
+
+    private onLeftSqueeze(component?: WebXRControllerComponent) {
+        if (component?.changes.pressed) {
+            if (component?.pressed && this.selectedObject) {
+                if (this.leftHand.intersectsMesh(this.destroyWidget,true)) {
+                    this.envObjects.delete(this.selectedObject.name);
+
+                    Messages.sendMessage(false, this.createMessage(MessageType.remove, this.selectedObject.name));
+                    this.selectedObject.dispose();
+                    this.selectedObject = null;
+
+                    this.destroyWidget.isVisible = false;
+                }
+            }
+        }
     }
 
     private onRightSqueeze(component?: WebXRControllerComponent) {
@@ -450,23 +484,29 @@ class Game
 
                         //Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.uniqueId.toString()));
                         Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
+
+                        this.destroyWidget.isVisible = true;
                     }
                 }
                 break;
             case PointerEventTypes.POINTERUP:
-                this.selectedObject?.setParent(null);
                 if (this.selectedObject) {
-                    //Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
+                    this.selectedObject?.setParent(null);
+                    if (this.selectedObject) {
+                        //Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
 
-                    // this is a test to see if it will update user's hand more actively
-                    //Messages.sendMessage(false, this.createUpdate(this.user));
+                        // this is a test to see if it will update user's hand more actively
+                        //Messages.sendMessage(false, this.createUpdate(this.user));
 
-                    //Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.uniqueId.toString()));
-                    Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
+                        //Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.uniqueId.toString()));
+                        Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
+                    }
+
+                    this.selectedObject = null;
+                    this.prevObjPos = null;
                 }
 
-                this.selectedObject = null;
-                this.prevObjPos = null;
+                this.destroyWidget.isVisible = false;
                 break;
         }
 
@@ -582,6 +622,12 @@ class Game
                     meshes: meshes
                 };
                 break;
+            case MessageType.remove:  // remove items and users
+                message = {
+                    id: id,
+                    type: type
+                }
+                break;
         }
 
         //console.log("sending message: " + JSON.stringify(message));
@@ -666,6 +712,19 @@ class Game
                     //this.envObjects.forEach((mesh, id) => {
                     //    console.log("id in map: " + id + ", mesh: " + mesh + ", mesh id: " + mesh.uniqueId + ", mesh name: " + mesh.name);
                     //});
+                }
+                break;
+            case MessageType.remove:
+                var item = this.envObjects.get(msg.id);
+                if (item) {
+                    this.envObjects.delete(msg.id);
+                    item.dispose();
+                } else {
+                    var user = this.envUsers.get(msg.id);
+                    if (user) {
+                        this.envUsers.delete(msg.id);
+                        user.remove();
+                    }
                 }
                 break;
         }
