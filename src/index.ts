@@ -438,11 +438,11 @@ class Game
         //}
 
         if (this.selectedObject) {
-            this.frame = this.frame + 1; 
+            this.frame++;
 
-            if (this.frame % 20 == 0){   // let's make it do this only every 30 frames 
-            console.log('pushing selected object positions during each frame ..'); 
-            this.movementArray.push(this.selectedObject.getAbsolutePosition().clone()); 
+            if (this.frame % 20 == 0){   // let's make it do this only every 20 frames 
+                console.log('pushing selected object positions during each frame ..'); 
+                this.movementArray.push(this.selectedObject.getAbsolutePosition().clone()); 
             } 
         }
     }
@@ -477,11 +477,9 @@ class Game
                 var newMesh = MeshBuilder.CreatePolyhedron("name", { type: num, size: 1 }, this.scene);
                 newMesh.name = this.user + newMesh.uniqueId.toString();
                 newMesh.position = new Vector3(2, 3, 4);
-                //this.envObjects.set(newMesh.uniqueId.toString(), newMesh);
                 this.envObjects.set(newMesh.name, newMesh);
 
-
-                //Messages.sendMessage(false, this.createMessage(MessageType.item, newMesh.uniqueId.toString(), true));
+                // send message creation to other clients
                 Messages.sendMessage(false, this.createMessage(MessageType.item, newMesh.name, true));
             }
         }
@@ -493,38 +491,30 @@ class Game
             case PointerEventTypes.POINTERDOWN:
                 if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo.pickedMesh?.name != "guiPlane") {
                     this.selectedObject = pointerInfo.pickInfo.pickedMesh;
-                    this.prevObjPos = this.selectedObject!.absolutePosition.clone();
-                    //console.log("selected object name: " + this.selectedObject!.name + ", id: " + this.selectedObject!.uniqueId.toString());
-                    this.selectedObject?.setParent(this.rightHand);
+
                     if (this.selectedObject) {
-                        this.frame = 0; 
-                        this.movementArray = [];
-                        this.movementArray.push(this.selectedObject.getAbsolutePosition()); 
+                        this.prevObjPos = this.selectedObject.absolutePosition.clone();
+                        this.selectedObject.setParent(this.rightHand);
 
-                        //Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
+                        this.frame = 0;
+                        this.movementArray.length = 0;
+                        //this.movementArray.push(this.selectedObject.getAbsolutePosition());
+                        this.movementArray.push(this.selectedObject.getAbsolutePosition().clone());  // need to push clone or it'll keep updating
 
-                        // this is a test to see if it will update user's hand more actively
-                        //Messages.sendMessage(false, this.createUpdate(this.user));
-
-                        //Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.uniqueId.toString()));
+                        // send selection message to other clients
                         Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
 
+                        // enable object destruction
                         this.destroyWidget.isVisible = true;
                     }
                 }
                 break;
             case PointerEventTypes.POINTERUP:
                 if (this.selectedObject) {
-                    this.selectedObject?.setParent(null);
-                    if (this.selectedObject) {
-                        //Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
 
-                        // this is a test to see if it will update user's hand more actively
-                        //Messages.sendMessage(false, this.createUpdate(this.user));
-
-                        //Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.uniqueId.toString()));
-                        Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
-                    }
+                    // deselect object and notify other clients
+                    this.selectedObject.setParent(null);
+                    Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
 
                     this.selectedObject = null;
                     this.prevObjPos = null;
@@ -533,13 +523,10 @@ class Game
                 this.destroyWidget.isVisible = false;
                 break;
         }
-
-        //Messages.sendMessage(false, this.createUpdate(this.user));
     }
 
     private createMessage(type: MessageType, id: string, serializeNew: boolean = false) : string {
         var message = {};
-        //console.log("id: " + id + ", mesh with that id: " + this.envObjects.get(id));
 
         switch (type) {
             case MessageType.item: // used for either creating or updating an item
@@ -622,65 +609,58 @@ class Game
                         // item.scaling = Object.assign(item.scaling, msg.info.scaling);
 
                         if (this.isUpdateComplete){
-                            var env_object = this.envObjects.get(msg.id);
-                            // want way to attach mesh to hand of other users
 
-                            if (env_object) { // update info of item 
-                                // var prev_position = env_object!.position;
-                                this.frame = 0; 
-                                if (item.position) {
+                            this.frame = 0; 
+                            if (item.position) { // how is this even running??
 
-                                    var object_animation = new Animation("object_animation", "position", 30, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
+                                var object_animation = new Animation("object_animation", "position", 30, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
 
-                                    var movement_array = msg.info.position; 
-                                    // movement_array = movement_array.reverse();  // the array is backwards so gotta recorrect that
+                                var movement_array = msg.info.position;
 
-                                    console.log('movement array! ', movement_array); 
-                                    var movement_with_frame = []; 
-                                    var frame = 0; 
+                                console.log('movement array! ', movement_array);
+                                var movement_with_frame = [];
+                                var frame = 0;
 
-                                    this.isUpdateComplete = false; 
+                                this.isUpdateComplete = false;
 
-                                    if (movement_array){
+                                if (movement_array){
 
-                                        for (let vector of movement_array){
-                                            console.log('vector ', vector); 
-                                            console.log('frame: ', frame); 
-                                            var pos = new Vector3(vector._x, vector._y, vector._z); 
+                                    for (let vector of movement_array){
+                                        //console.log('vector ', vector);
+                                        //console.log('frame: ', frame);
+                                        var pos = Object.assign(new Vector3(), vector);
 
-                                            movement_with_frame.push(
-                                                {
-                                                    frame: frame, 
-                                                    value: pos
-                                                }
-                                            )
-                                            frame = frame + 20; 
-                                        }
-
-                                        object_animation.setKeys(movement_with_frame); 
-                                        env_object!.animations = []; 
-                                        env_object!.animations.push(object_animation); 
-
-                                        console.log('beginning animation'); 
-
-                                        this.scene.beginAnimation(env_object, 0, frame-20, false, 1, ()=>
-                                        {
-                                            console.log('animation complete'); 
-                                            frame = 0; 
-                                            this.isUpdateComplete = true;
-
-
-                                            // intended to update positions after animation is complete
-                                            // env_object!.position = Object.assign(env_object!.position, movement_array[-1]); // will go to most recent position
-                                            item!.position = Object.assign(item!.position, movement_array[-1]);
-                                            item!.rotation = Object.assign(item!.rotation, msg.info.rotation);
-                                            item!.scaling = Object.assign(item!.scaling, msg.info.scaling);
-
-                                            this.scene.removeAnimation(object_animation); 
-
-                                        });
-
+                                        movement_with_frame.push(
+                                            {
+                                                frame: frame, 
+                                                value: pos
+                                            }
+                                        )
+                                        frame = frame + 20; 
                                     }
+
+                                    object_animation.setKeys(movement_with_frame);
+                                    item.animations = [];
+                                    item.animations.push(object_animation);
+
+                                    console.log('beginning animation'); 
+
+                                    this.scene.beginAnimation(item, 0, frame - 20, false, 1, () =>
+                                    {
+                                        console.log('animation complete'); 
+                                        frame = 0; 
+                                        this.isUpdateComplete = true;
+
+
+                                        // intended to update positions after animation is complete
+                                        item!.position = Object.assign(item!.position, movement_array[-1]);  // will go to most recent position
+                                        item!.rotation = Object.assign(item!.rotation, msg.info.rotation);
+                                        item!.scaling = Object.assign(item!.scaling, msg.info.scaling);
+
+                                        this.scene.removeAnimation(object_animation); 
+
+                                    });
+
                                 }
                             }
                         }
@@ -716,10 +696,7 @@ class Game
 
                     // add user to list, update new user with this user's info
                     this.envUsers.set(msg.id, new User(msg.id, msg.info, this.scene));
-                    //console.log("add new user: " + msg.id);
-                    //console.log("message: " + message);
                     Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
-                    //console.log("send this user: " + this.user);
 
                 } else { // update existing user
                     user.update(msg.info);
@@ -733,10 +710,6 @@ class Game
                     });
                     this.admin = false;
                     //this.syncStatus!.isVisible = false;
-
-                    //this.envObjects.forEach((mesh, id) => {
-                    //    console.log("id in map: " + id + ", mesh: " + mesh + ", mesh id: " + mesh.uniqueId + ", mesh name: " + mesh.name);
-                    //});
                 }
                 break;
             case MessageType.remove:
@@ -785,10 +758,8 @@ class Game
         
         // sync client - hopefully finishes before sync is needed
         await this.client.once('sync', (state: any, prevState: any, res: any) => {
-            //console.log("client state: " + state); // state will be 'PREPARED' when the client is ready to use
 
             // create self user object for other clients
-            //Messages.sendMessage(false, this.createUpdate(this.user));
             Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
 
             // add message listener to room
@@ -858,31 +829,13 @@ class User {
         this.right.dispose();
     }
 
+    // updates position of user object
     public update(info: any) {
-        //var obj = JSON.parse(info);
-
         this.head.setAbsolutePosition(Object.assign(this.head.position, info.hpos));
         this.head.rotation = Object.assign(this.head.rotation, info.hrot);
         this.left.setAbsolutePosition(Object.assign(this.left.position, info.lpos));
         this.right.setAbsolutePosition(Object.assign(this.right.position, info.rpos));
     }
-
-    // return JSON string
-    //public toString() {
-    //    var ret = {
-    //        status: "update",
-    //        type: "user",
-    //        id: this.user,
-    //        info: {
-    //            hpos: this.head.position.clone(),
-    //            hrot: this.head.absoluteRotationQuaternion.toEulerAngles().clone(),
-    //            lpos: this.left.absolutePosition.clone(),
-    //            rpos: this.left.absolutePosition.clone()
-    //        }
-    //    };
-
-    //    return JSON.stringify(ret);
-    //}
 }
 
 // start the game
