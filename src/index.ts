@@ -23,6 +23,7 @@ import { SceneSerializer } from "@babylonjs/core/Misc/sceneSerializer";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { PointerEventTypes, PointerInfo } from "@babylonjs/core/Events/pointerEvents";
+import { Animation } from "@babylonjs/core/Animations/animation"; 
 
 import * as MATRIX from "matrix-js-sdk";
 
@@ -42,6 +43,7 @@ module Messages {
             body: content,
             msgtype: isNotice ? "m.notice" : "m.text"
         };
+
         client.sendEvent(room, "m.room.message", send, "", (err: any, res: any) => {
             if (err) {
                 console.log("message send error: " + err);
@@ -85,10 +87,13 @@ class Game
     private envUsers: Map<string, User>;
     private envObjects: Map<string, AbstractMesh>;
     private userColor: Color3;
+    private isUpdateComplete: Boolean | null;
 
     private failedLogin: TextBlock | null;
 
     private admin = true;
+    private frame = 0; 
+    private movementArray: Array<Vector3>;
 
     // in-environment GUI items
     //private colorWidget: ;
@@ -118,6 +123,8 @@ class Game
         this.selectedObject = null;
         this.prevObjPos = null;
 
+        this.isUpdateComplete = true; 
+
         // set up positions 
         //this.userPosition = null; 
         //this.leftPosition = null; 
@@ -136,6 +143,9 @@ class Game
         this.envObjects = new Map();
         this.userColor = new Color3(Math.random(), Math.random(), Math.random());
 
+        // intended to keep track of motion of object selected 
+        this.frame = 0;
+        this.movementArray = []
 
         // grab this to destroy the selected object
         this.destroyWidget = MeshBuilder.CreateSphere("destroyWidget", { segments: 4, diameter: 0.05 }, this.scene);
@@ -143,6 +153,7 @@ class Game
         (<StandardMaterial>this.destroyWidget.material).diffuseColor = new Color3(0.5, 0, 0);
         this.destroyWidget.isPickable = false;
         this.destroyWidget.isVisible = false;
+
     }
 
     start() : void 
@@ -425,6 +436,15 @@ class Game
         //    Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
         //    this.prevObjPos = this.selectedObject.absolutePosition.clone();
         //}
+
+        if (this.selectedObject) {
+            this.frame = this.frame + 1; 
+
+            if (this.frame % 30 != 0){   // let's make it do this only every 30 frames 
+            console.log('pushing selected object positions during each frame ..'); 
+            this.movementArray.push(this.selectedObject.getAbsolutePosition().clone()); 
+            } 
+        }
     }
 
     private processControllerInput() {
@@ -477,6 +497,10 @@ class Game
                     //console.log("selected object name: " + this.selectedObject!.name + ", id: " + this.selectedObject!.uniqueId.toString());
                     this.selectedObject?.setParent(this.rightHand);
                     if (this.selectedObject) {
+                        this.frame = 0; 
+                        this.movementArray = [];
+                        this.movementArray.push(this.selectedObject.getAbsolutePosition()); 
+
                         //Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
 
                         // this is a test to see if it will update user's hand more actively
@@ -513,65 +537,6 @@ class Game
         //Messages.sendMessage(false, this.createUpdate(this.user));
     }
 
-    //// writes update message in correct format
-    //private createUpdate(id: string): string {
-    //    var ret = {};
-    //    if (id == this.user) { // write update message for user
-    //        ret = {
-    //            status: "update",
-    //            type: "user",
-    //            id: this.user,
-    //            info: {
-    //                hpos: this.xrCamera?.position.clone(),
-    //                hrot: this.xrCamera?.rotation.clone(),
-    //                lpos: this.leftHand.absolutePosition,
-    //                rpos: this.rightHand.absolutePosition,
-    //                color: this.userColor
-    //            }
-    //        };
-    //    } else if (id == "sync") {
-    //        var meshes : any[] = [];
-    //        this.envObjects.forEach((mesh, id) => {
-    //            var message = {
-    //                status: "create",
-    //                type: "item",
-    //                id: id,
-    //                mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(mesh)),
-    //                info: {
-
-    //                }
-    //            };
-
-    //            meshes.push(message);
-    //        });
-    //        ret = {
-    //            status: "sync",
-    //            info: {
-    //                meshes: meshes
-    //            }
-    //        };
-    //    } else { // write update message for item
-    //        if (this.selectedObject){
-    //            ret = {
-    //                status: "update",
-    //                type: "item",
-    //                id: id,
-    //                user: this.user,
-    //                //mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(this.selectedObject!, false, false)),
-    //                info: { 
-    //                    position: this.selectedObject!.absolutePosition.clone(),
-    //                    rotation: this.selectedObject!.absoluteRotationQuaternion.toEulerAngles().clone(),
-    //                    scaling: this.selectedObject!.scaling.clone(),
-    //                    selected: this.selectedObject.parent ? true : false,
-    //                    color: this.userColor
-    //                }
-    //            };
-    //        }
-    //    }
-
-    //    return JSON.stringify(ret);
-    //}
-
     private createMessage(type: MessageType, id: string, serializeNew: boolean = false) : string {
         var message = {};
         //console.log("id: " + id + ", mesh with that id: " + this.envObjects.get(id));
@@ -583,7 +548,8 @@ class Game
                     type: type,
                     mesh: serializeNew ? ("data:" + JSON.stringify(SceneSerializer.SerializeMesh(this.envObjects.get(id)!, false, false))) : "",
                     info: serializeNew ? {} : {
-                        position: this.selectedObject!.absolutePosition.clone(),
+                        // position: this.selectedObject!.absolutePosition.clone(),
+                        position: this.movementArray,
                         rotation: this.selectedObject!.absoluteRotationQuaternion.toEulerAngles().clone(),
                         scaling: this.selectedObject!.scaling.clone(),
                         selected: this.selectedObject!.parent ? true : false,
@@ -642,12 +608,6 @@ class Game
         switch (msg.type) {
             case MessageType.item:  // handle both item creation and updates
                 var item = this.envObjects.get(msg.id);
-                //console.log("msg.id: " + msg.id + " mesh: " + msg.mesh + " item: " + item);
-                //console.log("message: " + message);
-                //console.log("map:");
-                //this.envObjects.forEach((mesh, id) => {
-                //    console.log("map mesh id: " + id);
-                //});
 
                 if (!item) {  // add new item to room
                     if (msg.mesh != "") {
@@ -657,9 +617,70 @@ class Game
                 } else {  // update existing item
                     //console.log("update item. mesh: " + msg.mesh);
                     if (msg.mesh?.length == "") {  // update mesh positions only
-                        item.position = Object.assign(item.position, msg.info.position);
-                        item.rotation = Object.assign(item.rotation, msg.info.rotation);
-                        item.scaling = Object.assign(item.scaling, msg.info.scaling);
+                        // item.position = Object.assign(item.position, msg.info.position);
+                        // item.rotation = Object.assign(item.rotation, msg.info.rotation);
+                        // item.scaling = Object.assign(item.scaling, msg.info.scaling);
+
+                        if (this.isUpdateComplete){
+                            var env_object = this.envObjects.get(msg.id);
+                            // want way to attach mesh to hand of other users
+
+                            if (env_object) { // update info of item 
+                                // var prev_position = env_object!.position;
+                                this.frame = 0; 
+                                if (item.position) {
+
+                                var object_animation = new Animation("object_animation", "position", 30, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
+
+                                var movement_array = msg.info.position; 
+                                // movement_array = movement_array.reverse();  // the array is backwards so gotta recorrect that
+
+                                console.log('movement array! ', movement_array); 
+                                var movement_with_frame = []; 
+                                var frame = 0; 
+
+                                this.isUpdateComplete = false; 
+
+                                if (movement_array){
+
+                                    for (let vector of movement_array){
+                                        console.log('vector ', vector); 
+                                        console.log('frame: ', frame); 
+                                        var pos = new Vector3(vector._x, vector._y, vector._z); 
+
+                                        movement_with_frame.push(
+                                            {
+                                                frame: frame, 
+                                                value: pos
+                                            }
+                                        )
+                                        frame = frame + 30; 
+                                    }
+
+                                object_animation.setKeys(movement_with_frame); 
+                                env_object!.animations = []; 
+                                env_object!.animations.push(object_animation); 
+
+                                console.log('beginning animation'); 
+
+                                this.scene.beginAnimation(env_object, 0, frame-30, false, 6, ()=>
+                                {
+                                    console.log('animation complete'); 
+                                    frame = 0; 
+                                    this.isUpdateComplete = true;
+
+
+                                    // intended to update positions after animation is complete
+                                    // env_object!.position = Object.assign(env_object!.position, movement_array[-1]); // will go to most recent position
+                                    item!.position = Object.assign(item!.position, movement_array[-1]);
+                                    item!.rotation = Object.assign(item!.rotation, msg.info.rotation);
+                                    item!.scaling = Object.assign(item!.scaling, msg.info.scaling);
+
+                                    this.scene.removeAnimation(object_animation); 
+
+                                });
+
+                            }}}}
 
                         if (msg.info.selected) {  // if other user has object selected, highlight in their color and disable selection
                             item.edgesColor = Object.assign(item.edgesColor, msg.info.color);
@@ -681,6 +702,7 @@ class Game
                     this.updateEnv(JSON.stringify(msg.userInfo));
                 }
                 break;
+            
             case MessageType.user:  // handle both user creation and updates
                 var user = this.envUsers.get(msg.id);
 
@@ -729,93 +751,7 @@ class Game
                 break;
         }
     }
-    
-    //// updates environment according to message received from room
-    //private updateEnv(message: string) {
-    //    console.log("message: " + message);
-    //    if (message) {
-    //        message = message.trim();
-    //        var msg = JSON.parse(message);
-    //        if (msg.info) {
-    //            // msg.info = msg.info.trim()
-    //            var msgInfo = msg.info;
 
-    //            switch (msg.status) {
-    //                case "create": // only used for items
-    //                    // import mesh from serialized mesh
-    //                    SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
-
-    //                    // add imported mesh to list with its unique id
-    //                    //let newMesh = this.scene.meshes[this.scene.meshes.length - 1];
-    //                    this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
-
-    //                    break;
-    //                case "update":
-    //                    switch (msg.type) {
-    //                        case "user":
-    //                            var user = this.envUsers.get(msg.id);
-
-    //                            if (!user) { // add new user
-    //                                if (this.admin) { // send env sync to new user if this user is admin
-    //                                    Messages.sendMessage(false, this.createUpdate("sync"));
-    //                                }
-
-    //                                // add user to list, update new user with this user's info 
-    //                                this.envUsers.set(msg.id, new User(msg.id, msgInfo, this.scene));
-    //                                Messages.sendMessage(false, this.createUpdate(this.user));
-
-    //                            } else { // update existing user
-    //                                user.update(msgInfo);
-    //                            }
-    //                            break;
-
-    //                        case "item":
-    //                            var env_object = this.envObjects.get(msg.id);
-    //                            // want way to attach mesh to hand of other users
-
-    //                            if (env_object) { // update info of item 
-    //                                env_object.position = Object.assign(env_object.position, msgInfo.position);
-    //                                env_object.rotation = Object.assign(env_object.rotation, msgInfo.rotation);
-    //                                env_object.scaling = Object.assign(env_object.scaling, msgInfo.scaling);
-    //                                //console.log("msgInfo.selected: " + msgInfo.selected);
-    //                                if (msgInfo.selected) {
-    //                                    env_object.edgesColor = Object.assign(env_object.edgesColor, msgInfo.color);
-    //                                    env_object.enableEdgesRendering();
-    //                                    env_object.isPickable = false;
-    //                                    //console.log("other user selected object");
-    //                                } else {
-    //                                    env_object.disableEdgesRendering();
-    //                                    env_object.isPickable = true;
-    //                                    //console.log("other user deselected object");
-    //                                }
-    //                            }
-
-
-    //                            // attempt to update meshes using same import method
-    //                            // appears to duplicate presynced meshes?
-    //                            //this.envObjects.get(msg.id)?.dispose();
-    //                            //this.envObjects.delete(msg.id);
-
-    //                            //SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
-    //                            //this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
-    //                    }
-    //                    break;
-    //                case "remove":
-    //                    this.envUsers.get(msg.id)?.remove();
-    //                    this.envUsers.delete(msg.id);
-    //                    break;
-    //                case "sync": // sync existing objects in environment
-    //                    this.syncStatus!.isVisible = true;
-    //                    msgInfo.meshes.forEach((message: any) => {
-    //                        this.updateEnv(JSON.stringify(message));
-    //                    });
-    //                    this.admin = false;
-    //                    this.syncStatus!.isVisible = false;
-    //                    break;
-    //            }
-    //        }
-    //    }
-    //}
 
     private async connect(user: string, pass: string) {
         // login
@@ -917,13 +853,6 @@ class User {
         this.head.dispose();
         this.left.dispose();
         this.right.dispose();
-
-        //var content = {
-        //    type: "remove",
-        //    content: this.user
-        //};
-
-        //Messages.sendMessage(false, JSON.stringify(content));
     }
 
     public update(info: any) {
@@ -936,21 +865,21 @@ class User {
     }
 
     // return JSON string
-    public toString() {
-        var ret = {
-            status: "update",
-            type: "user",
-            id: this.user,
-            info: {
-                hpos: this.head.position.clone(),
-                hrot: this.head.absoluteRotationQuaternion.toEulerAngles().clone(),
-                lpos: this.left.absolutePosition.clone(),
-                rpos: this.left.absolutePosition.clone()
-            }
-        };
+    //public toString() {
+    //    var ret = {
+    //        status: "update",
+    //        type: "user",
+    //        id: this.user,
+    //        info: {
+    //            hpos: this.head.position.clone(),
+    //            hrot: this.head.absoluteRotationQuaternion.toEulerAngles().clone(),
+    //            lpos: this.left.absolutePosition.clone(),
+    //            rpos: this.left.absolutePosition.clone()
+    //        }
+    //    };
 
-        return JSON.stringify(ret);
-    }
+    //    return JSON.stringify(ret);
+    //}
 }
 
 // start the game
