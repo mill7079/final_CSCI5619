@@ -423,7 +423,7 @@ class Game
         if (this.selectedObject) {
             this.frame = this.frame + 1; 
 
-            if (this.frame % 30 != 0){   // let's make it do this only every 30 frames 
+            if (this.frame % 20 == 0){   // let's make it do this only every 30 frames 
             console.log('pushing selected object positions during each frame ..'); 
             this.movementArray.push(this.selectedObject.getAbsolutePosition().clone()); 
             } 
@@ -608,7 +608,7 @@ class Game
                                                 value: pos
                                             }
                                         )
-                                        frame = frame + 30; 
+                                        frame = frame + 20; 
                                     }
 
                                 object_animation.setKeys(movement_with_frame); 
@@ -617,7 +617,7 @@ class Game
 
                                 console.log('beginning animation'); 
 
-                                this.scene.beginAnimation(env_object, 0, frame-30, false, 6, ()=>
+                                this.scene.beginAnimation(env_object, 0, frame-20, false, 1, ()=>
                                 {
                                     console.log('animation complete'); 
                                     frame = 0; 
