@@ -440,7 +440,7 @@ class Game
                 if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo.pickedMesh?.name != "guiPlane") {
                     this.selectedObject = pointerInfo.pickInfo.pickedMesh;
                     this.prevObjPos = this.selectedObject!.absolutePosition.clone();
-                    console.log("selected object name: " + this.selectedObject!.name + ", id: " + this.selectedObject!.uniqueId.toString());
+                    //console.log("selected object name: " + this.selectedObject!.name + ", id: " + this.selectedObject!.uniqueId.toString());
                     this.selectedObject?.setParent(this.rightHand);
                     if (this.selectedObject) {
                         //Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
@@ -534,7 +534,7 @@ class Game
 
     private createMessage(type: MessageType, id: string, serializeNew: boolean = false) : string {
         var message = {};
-        console.log("id: " + id + ", mesh with that id: " + this.envObjects.get(id));
+        //console.log("id: " + id + ", mesh with that id: " + this.envObjects.get(id));
 
         switch (type) {
             case MessageType.item: // used for either creating or updating an item
@@ -584,7 +584,7 @@ class Game
                 break;
         }
 
-        console.log("sending message: " + JSON.stringify(message));
+        //console.log("sending message: " + JSON.stringify(message));
         return JSON.stringify(message);
     }
 
@@ -596,18 +596,20 @@ class Game
         switch (msg.type) {
             case MessageType.item:  // handle both item creation and updates
                 var item = this.envObjects.get(msg.id);
-                console.log("msg.id: " + msg.id + " mesh: " + msg.mesh + " item: " + item);
-                console.log("message: " + message);
-                console.log("map:");
-                this.envObjects.forEach((mesh, id) => {
-                    console.log("map mesh id: " + id);
-                });
+                //console.log("msg.id: " + msg.id + " mesh: " + msg.mesh + " item: " + item);
+                //console.log("message: " + message);
+                //console.log("map:");
+                //this.envObjects.forEach((mesh, id) => {
+                //    console.log("map mesh id: " + id);
+                //});
 
                 if (!item) {  // add new item to room
-                    SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
-                    this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
+                    if (msg.mesh != "") {
+                        SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
+                        this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
+                    }
                 } else {  // update existing item
-                    console.log("update item. mesh: " + msg.mesh);
+                    //console.log("update item. mesh: " + msg.mesh);
                     if (msg.mesh?.length == "") {  // update mesh positions only
                         item.position = Object.assign(item.position, msg.info.position);
                         item.rotation = Object.assign(item.rotation, msg.info.rotation);
@@ -643,10 +645,10 @@ class Game
 
                     // add user to list, update new user with this user's info
                     this.envUsers.set(msg.id, new User(msg.id, msg.info, this.scene));
-                    console.log("add new user: " + msg.id);
-                    console.log("message: " + message);
+                    //console.log("add new user: " + msg.id);
+                    //console.log("message: " + message);
                     Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
-                    console.log("send this user: " + this.user);
+                    //console.log("send this user: " + this.user);
 
                 } else { // update existing user
                     user.update(msg.info);
@@ -661,9 +663,9 @@ class Game
                     this.admin = false;
                     //this.syncStatus!.isVisible = false;
 
-                    this.envObjects.forEach((mesh, id) => {
-                        console.log("id in map: " + id + ", mesh: " + mesh + ", mesh id: " + mesh.uniqueId + ", mesh name: " + mesh.name);
-                    });
+                    //this.envObjects.forEach((mesh, id) => {
+                    //    console.log("id in map: " + id + ", mesh: " + mesh + ", mesh id: " + mesh.uniqueId + ", mesh name: " + mesh.name);
+                    //});
                 }
                 break;
         }
