@@ -94,6 +94,7 @@ class Game
     private admin = true;
     private frame = 0; 
     private movementArray: Array<Vector3>;
+    private rotationArray: Vector3[];
 
     // in-environment GUI items
     //private colorWidget: ;
@@ -123,15 +124,9 @@ class Game
         this.selectedObject = null;
         this.prevObjPos = null;
 
-        this.isUpdateComplete = true; 
-
-        // set up positions 
-        //this.userPosition = null; 
-        //this.leftPosition = null; 
-        //this.rightPosition = null; 
+        this.isUpdateComplete = true;
 
         // create client on server
-        //this.client = MATRIX.createClient("https://matrix.org");
         this.client = Messages.client;
 
         this.guiPlane = null;
@@ -145,7 +140,8 @@ class Game
 
         // intended to keep track of motion of object selected 
         this.frame = 0;
-        this.movementArray = []
+        this.movementArray = [];
+        this.rotationArray = [];
 
         // grab this to destroy the selected object
         this.destroyWidget = MeshBuilder.CreateSphere("destroyWidget", { segments: 4, diameter: 0.05 }, this.scene);
@@ -388,7 +384,6 @@ class Game
                         isUser = false;
                     } else {
                         inputPass.processKey(13);
-                        //this.password = inputPass.text;
                         inputUser.background = this.black;
                         inputPass.background = this.gray;
                         isUser = true;
@@ -410,13 +405,6 @@ class Game
             }
         });
 
-        // send a message
-        //var message = {
-        //    body: "hello",
-        //    msgtype: "m.text"
-        //};
-        //this.client.sendEvent("!FQlzwKdCBFuEnQusdk:matrix.org", "m.room.message", message, "");
-
         // enable pointer selection/deselection 
         this.scene.onPointerObservable.add((pointerInfo) => {
             this.processPointer(pointerInfo);
@@ -431,18 +419,14 @@ class Game
     {
         this.processControllerInput();
 
-        //if (this.selectedObject && Vector3.Distance(this.selectedObject!.absolutePosition, this.prevObjPos!) >= this.minMove) {
-        //    console.log("update time");
-        //    Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
-        //    this.prevObjPos = this.selectedObject.absolutePosition.clone();
-        //}
-
+        // track object positionn/rotation updates
         if (this.selectedObject) {
             this.frame++;
 
             if (this.frame % 20 == 0){   // let's make it do this only every 20 frames 
-                console.log('pushing selected object positions during each frame ..'); 
-                this.movementArray.push(this.selectedObject.getAbsolutePosition().clone()); 
+                //console.log('pushing selected object positions during each frame ..'); 
+                this.movementArray.push(this.selectedObject.getAbsolutePosition().clone());
+                this.rotationArray.push(this.selectedObject.absoluteRotationQuaternion.toEulerAngles().clone());
             } 
         }
     }
@@ -455,7 +439,7 @@ class Game
     private onLeftSqueeze(component?: WebXRControllerComponent) {
         if (component?.changes.pressed) {
             if (component?.pressed && this.selectedObject) {
-                if (this.leftHand.intersectsMesh(this.destroyWidget,true)) {
+                if (this.leftHand.intersectsMesh(this.destroyWidget, true)) {  // destroy selected object if widget is selected
                     this.envObjects.delete(this.selectedObject.name);
 
                     Messages.sendMessage(false, this.createMessage(MessageType.remove, this.selectedObject.name));
@@ -496,10 +480,12 @@ class Game
                         this.prevObjPos = this.selectedObject.absolutePosition.clone();
                         this.selectedObject.setParent(this.rightHand);
 
+                        // push initial orientation to tracker arrays
                         this.frame = 0;
                         this.movementArray.length = 0;
-                        //this.movementArray.push(this.selectedObject.getAbsolutePosition());
+                        this.rotationArray.length = 0;
                         this.movementArray.push(this.selectedObject.getAbsolutePosition().clone());  // need to push clone or it'll keep updating
+                        this.rotationArray.push(this.selectedObject.absoluteRotationQuaternion.toEulerAngles().clone());
 
                         // send selection message to other clients
                         Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
@@ -537,7 +523,8 @@ class Game
                     info: serializeNew ? {} : {
                         // position: this.selectedObject!.absolutePosition.clone(),
                         position: this.movementArray,
-                        rotation: this.selectedObject!.absoluteRotationQuaternion.toEulerAngles().clone(),
+                        //rotation: this.selectedObject!.absoluteRotationQuaternion.toEulerAngles().clone(),
+                        rotation: this.rotationArray,
                         scaling: this.selectedObject!.scaling.clone(),
                         selected: this.selectedObject!.parent ? true : false,
                         color: this.userColor
@@ -602,32 +589,32 @@ class Game
                         this.envObjects.set(msg.id, this.scene.meshes[this.scene.meshes.length - 1]);
                     }
                 } else {  // update existing item
-                    //console.log("update item. mesh: " + msg.mesh);
                     if (msg.mesh?.length == "") {  // update mesh positions only
                         // item.position = Object.assign(item.position, msg.info.position);
                         // item.rotation = Object.assign(item.rotation, msg.info.rotation);
                         // item.scaling = Object.assign(item.scaling, msg.info.scaling);
 
-                        if (this.isUpdateComplete){
+                        if (this.isUpdateComplete){  // TODO i feel like this is going to screw with things...
 
                             this.frame = 0; 
                             if (item.position) { // how is this even running??
 
                                 var object_animation = new Animation("object_animation", "position", 30, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
+                                var rotationAnimation = new Animation("rotationAnimation", "rotation", 30, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
 
                                 var movement_array = msg.info.position;
+                                var rotation_array = msg.info.rotation;
 
-                                console.log('movement array! ', movement_array);
+                                //console.log('movement array! ', movement_array);
                                 var movement_with_frame = [];
+                                var rotation_with_frame = [];
                                 var frame = 0;
 
                                 this.isUpdateComplete = false;
 
-                                if (movement_array){
+                                if (movement_array && rotation_array) {
 
                                     for (let vector of movement_array){
-                                        //console.log('vector ', vector);
-                                        //console.log('frame: ', frame);
                                         var pos = Object.assign(new Vector3(), vector);
 
                                         movement_with_frame.push(
@@ -639,27 +626,56 @@ class Game
                                         frame = frame + 20; 
                                     }
 
+                                    frame = 0;
+
+                                    for (let vector of rotation_array) {
+                                        var rot = Object.assign(new Vector3(), vector);
+
+                                        rotation_with_frame.push(
+                                            {
+                                                frame: frame,
+                                                value: rot
+                                            }
+                                        )
+                                        frame += 20;
+                                    }
+
                                     object_animation.setKeys(movement_with_frame);
+                                    rotationAnimation.setKeys(rotation_with_frame);
+
                                     item.animations = [];
                                     item.animations.push(object_animation);
+                                    item.animations.push(rotationAnimation);
 
-                                    console.log('beginning animation'); 
-
-                                    this.scene.beginAnimation(item, 0, frame - 20, false, 1, () =>
-                                    {
-                                        console.log('animation complete'); 
-                                        frame = 0; 
+                                    this.scene.beginWeightedAnimation(item, 0, frame - 20, 1.0, false, 1.0, () => {
+                                        frame = 0;
                                         this.isUpdateComplete = true;
-
 
                                         // intended to update positions after animation is complete
                                         item!.position = Object.assign(item!.position, movement_array[-1]);  // will go to most recent position
-                                        item!.rotation = Object.assign(item!.rotation, msg.info.rotation);
+                                        //item!.rotation = Object.assign(item!.rotation, msg.info.rotation);
+                                        item!.rotation = Object.assign(item!.rotation, rotation_array[-1]);
                                         item!.scaling = Object.assign(item!.scaling, msg.info.scaling);
 
-                                        this.scene.removeAnimation(object_animation); 
-
+                                        this.scene.removeAnimation(object_animation);
+                                        this.scene.removeAnimation(rotationAnimation);
                                     });
+
+                                    //this.scene.beginAnimation(item, 0, frame - 20, false, 1, () =>
+                                    //{
+                                    //    //console.log('animation complete'); 
+                                    //    frame = 0; 
+                                    //    this.isUpdateComplete = true;
+
+
+                                    //    // intended to update positions after animation is complete
+                                    //    item!.position = Object.assign(item!.position, movement_array[-1]);  // will go to most recent position
+                                    //    item!.rotation = Object.assign(item!.rotation, msg.info.rotation);
+                                    //    item!.scaling = Object.assign(item!.scaling, msg.info.scaling);
+
+                                    //    this.scene.removeAnimation(object_animation); 
+
+                                    //});
 
                                 }
                             }
