@@ -93,7 +93,6 @@ class Game
     private envObjects: Map<string, AbstractMesh>;
     private userColor: Color3;
     private isUpdateComplete: Boolean | null;
-    private hasMoved: boolean = false;
 
     private failedLogin: TextBlock | null;
 
@@ -114,6 +113,7 @@ class Game
     private teleportImage: Mesh;
     private rotationNode: TransformNode;
     private headsetRotation: Quaternion | null;
+    private trackControllers: Vector3 | null = null;
 
     constructor()
     {
@@ -237,13 +237,6 @@ class Game
         // Assigns the web XR camera to a member variable
         this.xrCamera = xrHelper.baseExperience.camera;
 
-        // Update user after teleportation
-        this.xrCamera.onAfterCameraTeleport.add((eventData, state) => {
-            Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
-            this.hasMoved = true;
-        });
-
-
         // Remove default teleportation
         xrHelper.teleportation.dispose();
         //xrHelper.teleportation.addFloorMesh(environment!.ground!);
@@ -289,7 +282,7 @@ class Game
             }
 
             //Messages.sendMessage(false, this.createUpdate(this.user));
-            Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
+            //Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
         });
 
         // Don't forget to deparent objects from the controllers or they will be destroyed!
@@ -309,15 +302,6 @@ class Game
             }
 
             if (!this.rightHand.isVisible && !this.leftHand.isVisible) {
-                //var remove = {
-                //    status: "remove",
-                //    type: "user",
-                //    id: this.user,
-                //    info: {
-                        
-                //    }
-                //}
-                //Messages.sendMessage(false, JSON.stringify(remove));  // TODO
                 Messages.sendMessage(false, this.createMessage(MessageType.remove, this.user));
                 this.client.logout();
                 this.client.stopClient();
@@ -464,10 +448,11 @@ class Game
     // The main update loop will be executed once per frame before the scene is rendered
     private update() : void
     {
-        // attempt to fix controllers not moving after teleportation
-        if (this.hasMoved) {
-            Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
-            this.hasMoved = false;
+        if (this.trackControllers) {// && this.trackControllers != this.leftController?.pointer.absolutePosition) {
+            if (Vector3.Distance(this.trackControllers, this.leftController!.pointer.absolutePosition)) {
+                Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
+                this.trackControllers = null;
+            } 
         }
 
         this.processControllerInput();
@@ -578,7 +563,12 @@ class Game
 
                     this.teleportPoint = null;
                     this.headsetRotation = null;
+
+                    if (this.leftController) {
+                        this.trackControllers = this.leftController.pointer.absolutePosition.clone();
+                    }
                 }
+
             }
         }
     }
