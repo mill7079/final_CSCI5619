@@ -25,6 +25,10 @@ import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { PointerEventTypes, PointerInfo } from "@babylonjs/core/Events/pointerEvents";
 import { Animation } from "@babylonjs/core/Animations/animation";
 import { LinesMesh } from "@babylonjs/core/Meshes/linesMesh";
+import { Ray } from "@babylonjs/core/Culling/ray";
+import { Axis } from "@babylonjs/core/Maths/math.axis";
+import { Quaternion } from "@babylonjs/core/Maths/math.vector";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 
 import * as MATRIX from "matrix-js-sdk";
 
@@ -103,6 +107,14 @@ class Game
     //private textureWidget;
     private destroyWidget: AbstractMesh;
 
+    // custom teleportation/selection
+    private laserPointer: LinesMesh | null;
+    private groundMeshes: Array<AbstractMesh>;
+    private teleportPoint: Vector3 | null;
+    private teleportImage: Mesh;
+    private rotationNode: TransformNode;
+    private headsetRotation: Quaternion | null;
+
     constructor()
     {
         // Get the canvas element 
@@ -140,7 +152,7 @@ class Game
         this.envObjects = new Map();
         this.userColor = new Color3(Math.random(), Math.random(), Math.random());
 
-        // intended to keep track of motion of object selected 
+        // track selected object motion
         this.frame = 0;
         this.movementArray = [];
         this.rotationArray = [];
@@ -152,6 +164,20 @@ class Game
         this.destroyWidget.isPickable = false;
         this.destroyWidget.isVisible = false;
 
+        // teleport/select
+        this.laserPointer = null;
+        this.groundMeshes = [];
+        this.teleportPoint = null;
+
+        this.teleportImage = MeshBuilder.CreateCylinder("teleportImage", { height: 0.3, diameterTop: 0.2, diameterBottom: 0 }, this.scene);
+        var material = new StandardMaterial("imageMat", this.scene);
+        material.emissiveColor = new Color3(0, 0.3, 0);
+        this.teleportImage.material = material;
+        this.teleportImage.isVisible = false;
+        this.teleportImage.isPickable = false;
+
+        this.rotationNode = new TransformNode("rotationNode", this.scene);
+        this.headsetRotation = null;
     }
 
     start() : void 
@@ -201,8 +227,8 @@ class Game
             skyboxColor: new Color3(0, 0, 0)
         });
 
-        // Make sure the ground and skybox are not pickable!
-        environment!.ground!.isPickable = false;
+        // Make sure the skybox is not pickable!
+        //environment!.ground!.isPickable = false;
         environment!.skybox!.isPickable = false;
 
         // Creates the XR experience helper
@@ -219,12 +245,21 @@ class Game
 
 
         // Remove default teleportation
-        //xrHelper.teleportation.dispose();
-        xrHelper.teleportation.addFloorMesh(environment!.ground!);
+        xrHelper.teleportation.dispose();
+        //xrHelper.teleportation.addFloorMesh(environment!.ground!);
+        this.groundMeshes.push(environment!.ground!);
 
-        // There is a bug in Babylon 4.1 that fails to reenable pointer selection after a teleport
-        // This is a hacky workaround that disables a different unused feature instead
-        xrHelper.teleportation.setSelectionFeature(xrHelper.baseExperience.featuresManager.getEnabledFeature("xr-background-remover"));
+        // Create points for the laser pointer
+        var laserPoints = [];
+        laserPoints.push(new Vector3(0, 0, 0));
+        laserPoints.push(new Vector3(0, 0, 1));
+
+        // create laser pointer
+        this.laserPointer = MeshBuilder.CreateLines("laserPointer", { points: laserPoints }, this.scene);
+        this.laserPointer.color = Color3.White();
+        this.laserPointer.alpha = .5;
+        this.laserPointer.visibility = 0;
+        this.laserPointer.isPickable = false;
 
         // Assign the left and right controllers to member variables
         xrHelper.input.onControllerAddedObservable.add((inputSource) => {
@@ -241,12 +276,16 @@ class Game
 
                 this.destroyWidget.parent = this.rightController.pointer;
                 this.destroyWidget.position = new Vector3(0, -0.07, -0.11);
+
+                this.laserPointer!.parent = this.rightController.pointer;
             }
             else 
             {
                 this.leftController = inputSource;
                 this.leftHand.parent = this.leftController.grip!;
                 this.leftHand.isVisible = true;
+
+                this.rotationNode.parent = this.leftController.pointer;
             }
 
             //Messages.sendMessage(false, this.createUpdate(this.user));
@@ -259,9 +298,14 @@ class Game
             if (inputSource.uniqueId.endsWith("right")) {
                 this.rightHand.parent = null;
                 this.rightHand.isVisible = false;
+
+                this.laserPointer!.parent = null;
+                this.laserPointer!.visibility = 0;
             } else {
                 this.leftHand.parent = null;
                 this.leftHand.isVisible = false;
+
+                this.rotationNode.parent = null;
             }
 
             if (!this.rightHand.isVisible && !this.leftHand.isVisible) {
@@ -442,6 +486,7 @@ class Game
     private processControllerInput() {
         this.onLeftSqueeze(this.leftController?.motionController?.getComponent("xr-standard-squeeze"));
         this.onRightSqueeze(this.rightController?.motionController?.getComponent("xr-standard-squeeze"));
+        this.onRightThumbstick(this.rightController?.motionController?.getComponent("xr-standard-thumbstick"));
     }
 
     private onLeftSqueeze(component?: WebXRControllerComponent) {
@@ -477,12 +522,74 @@ class Game
         }
     }
 
+    // custom teleportation - from Assignment 6
+    private onRightThumbstick(component?: WebXRControllerComponent) {
+        if (component?.changes.axes) {
+            if (component.axes.y < -.75) {
+                // Create a new ray cast
+                var ray = new Ray(this.rightController!.pointer.position, this.rightController!.pointer.forward, 20);
+                var pickInfo = this.scene.pickWithRay(ray);
+
+                // If the ray cast intersected a ground mesh
+                if (pickInfo?.hit && this.groundMeshes.includes(pickInfo.pickedMesh!)) {
+                    this.teleportPoint = pickInfo.pickedPoint;
+                    this.laserPointer!.scaling.z = pickInfo.distance;
+                    this.laserPointer!.visibility = 1;
+                    this.teleportImage.position = this.teleportPoint!.clone();
+
+                    // teleport location indicator  
+                    this.teleportImage.isVisible = true;
+                    if (!this.headsetRotation) {
+                        this.headsetRotation = this.xrCamera!.rotationQuaternion.clone();
+                        var eulers = this.headsetRotation.toEulerAngles();
+                        this.headsetRotation = Quaternion.FromEulerAngles(0, eulers.y, 0);
+                    }
+
+                    // rotation
+
+                    // find rotation of tagalong node in world space
+                    this.rotationNode.setParent(null);
+                    var rotate = this.rotationNode.rotation.clone();
+                    this.rotationNode.setParent(this.leftController!.pointer);
+
+                    this.teleportImage.rotationQuaternion = this.headsetRotation.clone();
+                    var addRotation = Quaternion.FromEulerAngles(-Math.PI / 2, -rotate.z, 0);
+                    this.teleportImage.rotationQuaternion?.multiplyInPlace(addRotation);
+                }
+            } else if (component.axes.y == 0) {
+                this.laserPointer!.visibility = 0;
+                this.teleportImage.isVisible = false;
+
+                // If we have a valid target point, then teleport the user
+                if (this.teleportPoint) {
+                    this.xrCamera!.position.x = this.teleportPoint.x;
+                    this.xrCamera!.position.y = this.teleportPoint.y + this.xrCamera!.realWorldHeight;
+                    this.xrCamera!.position.z = this.teleportPoint.z;
+
+                    // rotation
+
+                    // find rotation of tagalong node in world space
+                    this.rotationNode.setParent(null);
+                    var rotate = this.rotationNode.rotation.clone();
+                    this.rotationNode.setParent(this.leftController!.pointer);
+
+                    var cameraRotation = Quaternion.FromEulerAngles(0, -rotate.z, 0);
+                    this.xrCamera!.rotationQuaternion.multiplyInPlace(cameraRotation);
+
+                    this.teleportPoint = null;
+                    this.headsetRotation = null;
+                }
+            }
+        }
+    }
+
     // object manipulation
     private processPointer(pointerInfo: PointerInfo) {
         switch (pointerInfo.type) {
             case PointerEventTypes.POINTERDOWN:
-                if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo.pickedMesh?.name != "guiPlane") {
+                if (pointerInfo.pickInfo?.hit && !pointerInfo.pickInfo.pickedMesh?.name.endsWith("Plane")) {
                     this.selectedObject = pointerInfo.pickInfo.pickedMesh;
+                    console.log("mesh name: " + this.selectedObject?.name);
 
                     if (this.selectedObject) {
                         this.prevObjPos = this.selectedObject.absolutePosition.clone();
