@@ -85,11 +85,6 @@ class Game
     private envObjects: Map<string, AbstractMesh>;
     private userColor: Color3;
 
-    //private userPosition: Vector3 | null; 
-    //private leftPosition: Vector3 | null;
-    //private rightPosition: Vector3 | null;
-    //private userObj: User | null = null;
-
     private failedLogin: TextBlock | null;
 
     private admin = true;
@@ -426,25 +421,14 @@ class Game
                 // create random polyhedron
                 var num = Math.round(Math.random() * 14);
                 var newMesh = MeshBuilder.CreatePolyhedron("name", { type: num, size: 1 }, this.scene);
+                newMesh.name = this.user + newMesh.uniqueId.toString();
                 newMesh.position = new Vector3(2, 3, 4);
-                this.envObjects.set(newMesh.uniqueId.toString(), newMesh);
+                //this.envObjects.set(newMesh.uniqueId.toString(), newMesh);
+                this.envObjects.set(newMesh.name, newMesh);
 
-                // send serialized mesh to other clients
-                //let message = {
-                //    status: "create",
-                //    type: "item",
-                //    id: newMesh.uniqueId.toString(),
-                //    user: this.user,
-                //    mesh: "data:" + JSON.stringify(SceneSerializer.SerializeMesh(newMesh)),
-                //    info: {
-                //        position: newMesh.absolutePosition.clone()
-                //    }
-                //};
 
-                //Messages.sendMessage(false, JSON.stringify(message));
-                //Messages.sendMessage(false, this.createUpdate(this.user));
-
-                Messages.sendMessage(false, this.createMessage(MessageType.item, newMesh.uniqueId.toString(), true));
+                //Messages.sendMessage(false, this.createMessage(MessageType.item, newMesh.uniqueId.toString(), true));
+                Messages.sendMessage(false, this.createMessage(MessageType.item, newMesh.name, true));
             }
         }
     }
@@ -456,6 +440,7 @@ class Game
                 if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo.pickedMesh?.name != "guiPlane") {
                     this.selectedObject = pointerInfo.pickInfo.pickedMesh;
                     this.prevObjPos = this.selectedObject!.absolutePosition.clone();
+                    console.log("selected object name: " + this.selectedObject!.name + ", id: " + this.selectedObject!.uniqueId.toString());
                     this.selectedObject?.setParent(this.rightHand);
                     if (this.selectedObject) {
                         //Messages.sendMessage(false, this.createUpdate(this.selectedObject.uniqueId.toString()));
@@ -463,7 +448,8 @@ class Game
                         // this is a test to see if it will update user's hand more actively
                         //Messages.sendMessage(false, this.createUpdate(this.user));
 
-                        Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.uniqueId.toString()));
+                        //Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.uniqueId.toString()));
+                        Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
                     }
                 }
                 break;
@@ -475,7 +461,8 @@ class Game
                     // this is a test to see if it will update user's hand more actively
                     //Messages.sendMessage(false, this.createUpdate(this.user));
 
-                    Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.uniqueId.toString()));
+                    //Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.uniqueId.toString()));
+                    Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
                 }
 
                 this.selectedObject = null;
@@ -547,6 +534,7 @@ class Game
 
     private createMessage(type: MessageType, id: string, serializeNew: boolean = false) : string {
         var message = {};
+        console.log("id: " + id + ", mesh with that id: " + this.envObjects.get(id));
 
         switch (type) {
             case MessageType.item: // used for either creating or updating an item
@@ -562,7 +550,7 @@ class Game
                         color: this.userColor
                     },
                     userInfo: JSON.parse(this.createMessage(MessageType.user, this.user))
-                }
+                };
                 break;
             case MessageType.user: // used for creating/updating users
                 message = {
@@ -575,7 +563,7 @@ class Game
                         rpos: this.rightHand.absolutePosition,
                         color: this.userColor
                     }
-                }
+                };
                 break;
             case MessageType.sync: // used for syncing environment with new user if admin
                 var meshes: any[] = [];
@@ -596,6 +584,7 @@ class Game
                 break;
         }
 
+        console.log("sending message: " + JSON.stringify(message));
         return JSON.stringify(message);
     }
 
@@ -604,20 +593,15 @@ class Game
         //console.log("message: " + message);
         var msg = JSON.parse(message.trim());
 
-        // note: since the type is an int, testing for !type is going to be a false positive if the type is user
-        //if (!msg.type) {
-        //    console.log("ERROR: no message type");
-        //    console.log("message: " + message);
-        //    return;
-        //} else if (!msg.id) {
-        //    console.log("ERROR: no message id");
-        //    console.log("message: " + message);
-        //    return;
-        //}
-
         switch (msg.type) {
             case MessageType.item:  // handle both item creation and updates
                 var item = this.envObjects.get(msg.id);
+                console.log("msg.id: " + msg.id + " mesh: " + msg.mesh + " item: " + item);
+                console.log("message: " + message);
+                console.log("map:");
+                this.envObjects.forEach((mesh, id) => {
+                    console.log("map mesh id: " + id);
+                });
 
                 if (!item) {  // add new item to room
                     SceneLoader.ImportMesh("", "", msg.mesh, this.scene);
@@ -670,12 +654,16 @@ class Game
                 break;
             case MessageType.sync:
                 if (this.admin) {  // admin set to true at first, and actual admin will never see a sync message, but other users shouldn't sync
-                    this.syncStatus!.isVisible = true;
+                    //this.syncStatus!.isVisible = true;
                     msg.meshes.forEach((message: any) => {
                         this.updateEnv(JSON.stringify(message));
                     });
                     this.admin = false;
-                    this.syncStatus!.isVisible = false;
+                    //this.syncStatus!.isVisible = false;
+
+                    this.envObjects.forEach((mesh, id) => {
+                        console.log("id in map: " + id + ", mesh: " + mesh + ", mesh id: " + mesh.uniqueId + ", mesh name: " + mesh.name);
+                    });
                 }
                 break;
         }
