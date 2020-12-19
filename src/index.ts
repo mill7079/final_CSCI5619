@@ -630,57 +630,60 @@ class Game
                                 this.frame = 0; 
                                 if (item.position) {
 
-                                var object_animation = new Animation("object_animation", "position", 30, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
+                                    var object_animation = new Animation("object_animation", "position", 30, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
 
-                                var movement_array = msg.info.position; 
-                                // movement_array = movement_array.reverse();  // the array is backwards so gotta recorrect that
+                                    var movement_array = msg.info.position; 
+                                    // movement_array = movement_array.reverse();  // the array is backwards so gotta recorrect that
 
-                                console.log('movement array! ', movement_array); 
-                                var movement_with_frame = []; 
-                                var frame = 0; 
+                                    console.log('movement array! ', movement_array); 
+                                    var movement_with_frame = []; 
+                                    var frame = 0; 
 
-                                this.isUpdateComplete = false; 
+                                    this.isUpdateComplete = false; 
 
-                                if (movement_array){
+                                    if (movement_array){
 
-                                    for (let vector of movement_array){
-                                        console.log('vector ', vector); 
-                                        console.log('frame: ', frame); 
-                                        var pos = new Vector3(vector._x, vector._y, vector._z); 
+                                        for (let vector of movement_array){
+                                            console.log('vector ', vector); 
+                                            console.log('frame: ', frame); 
+                                            var pos = new Vector3(vector._x, vector._y, vector._z); 
 
-                                        movement_with_frame.push(
-                                            {
-                                                frame: frame, 
-                                                value: pos
-                                            }
-                                        )
-                                        frame = frame + 20; 
+                                            movement_with_frame.push(
+                                                {
+                                                    frame: frame, 
+                                                    value: pos
+                                                }
+                                            )
+                                            frame = frame + 20; 
+                                        }
+
+                                        object_animation.setKeys(movement_with_frame); 
+                                        env_object!.animations = []; 
+                                        env_object!.animations.push(object_animation); 
+
+                                        console.log('beginning animation'); 
+
+                                        this.scene.beginAnimation(env_object, 0, frame-20, false, 1, ()=>
+                                        {
+                                            console.log('animation complete'); 
+                                            frame = 0; 
+                                            this.isUpdateComplete = true;
+
+
+                                            // intended to update positions after animation is complete
+                                            // env_object!.position = Object.assign(env_object!.position, movement_array[-1]); // will go to most recent position
+                                            item!.position = Object.assign(item!.position, movement_array[-1]);
+                                            item!.rotation = Object.assign(item!.rotation, msg.info.rotation);
+                                            item!.scaling = Object.assign(item!.scaling, msg.info.scaling);
+
+                                            this.scene.removeAnimation(object_animation); 
+
+                                        });
+
                                     }
-
-                                object_animation.setKeys(movement_with_frame); 
-                                env_object!.animations = []; 
-                                env_object!.animations.push(object_animation); 
-
-                                console.log('beginning animation'); 
-
-                                this.scene.beginAnimation(env_object, 0, frame-20, false, 1, ()=>
-                                {
-                                    console.log('animation complete'); 
-                                    frame = 0; 
-                                    this.isUpdateComplete = true;
-
-
-                                    // intended to update positions after animation is complete
-                                    // env_object!.position = Object.assign(env_object!.position, movement_array[-1]); // will go to most recent position
-                                    item!.position = Object.assign(item!.position, movement_array[-1]);
-                                    item!.rotation = Object.assign(item!.rotation, msg.info.rotation);
-                                    item!.scaling = Object.assign(item!.scaling, msg.info.scaling);
-
-                                    this.scene.removeAnimation(object_animation); 
-
-                                });
-
-                            }}}}
+                                }
+                            }
+                        }
 
                         if (msg.info.selected) {  // if other user has object selected, highlight in their color and disable selection
                             item.edgesColor = Object.assign(item.edgesColor, msg.info.color);
