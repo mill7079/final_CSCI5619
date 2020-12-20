@@ -896,6 +896,79 @@ class Game
         }
     }
 
+    private animateItem(item: AbstractMesh, msg: any) {
+        if (this.isUpdateComplete) {
+
+            this.frame = 0;
+            if (item.position) { // how is this even running??
+
+                var object_animation = new Animation("object_animation", "position", 30, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
+                var rotationAnimation = new Animation("rotationAnimation", "rotation", 30, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
+
+                var movement_array = msg.info.position;
+                var rotation_array = msg.info.rotation;
+
+                //console.log('movement array! ', movement_array);
+                var movement_with_frame = [];
+                var rotation_with_frame = [];
+                var frame = 0;
+
+                this.isUpdateComplete = false;
+
+                if (movement_array && rotation_array) {
+
+                    for (let vector of movement_array) {
+                        var pos = Object.assign(new Vector3(), vector);
+
+                        movement_with_frame.push(
+                            {
+                                frame: frame,
+                                value: pos
+                            }
+                        )
+                        frame = frame + 20;
+                    }
+
+                    frame = 0;
+
+                    for (let vector of rotation_array) {
+                        var rot = Object.assign(new Vector3(), vector);
+
+                        rotation_with_frame.push(
+                            {
+                                frame: frame,
+                                value: rot
+                            }
+                        )
+                        frame += 20;
+                    }
+
+                    object_animation.setKeys(movement_with_frame);
+                    rotationAnimation.setKeys(rotation_with_frame);
+
+                    item.animations = [];
+                    item.animations.push(object_animation);
+                    item.animations.push(rotationAnimation);
+
+                    this.scene.beginWeightedAnimation(item, 0, frame - 20, 1.0, false, 1.0, () => {
+                        frame = 0;
+                        this.isUpdateComplete = true;
+
+                        // intended to update positions after animation is complete
+                        item!.position = Object.assign(item!.position, movement_array[-1]);  // will go to most recent position
+                        //item!.rotation = Object.assign(item!.rotation, msg.info.rotation);
+                        item!.rotation = Object.assign(item!.rotation, rotation_array[-1]);
+                        item!.scaling = Object.assign(item!.scaling, msg.info.scaling);
+
+                        this.scene.removeAnimation(object_animation);
+                        this.scene.removeAnimation(rotationAnimation);
+                    });
+
+                }
+            }
+        }
+    }
+
     private createMessage(type: MessageType, id: string, serializeNew: boolean = false) : string {
         var message = {};
 
@@ -979,76 +1052,7 @@ class Game
                         // item.rotation = Object.assign(item.rotation, msg.info.rotation);
                         // item.scaling = Object.assign(item.scaling, msg.info.scaling);
 
-                        if (this.isUpdateComplete){
-
-                            this.frame = 0; 
-                            if (item.position) { // how is this even running??
-
-                                var object_animation = new Animation("object_animation", "position", 30, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
-                                var rotationAnimation = new Animation("rotationAnimation", "rotation", 30, Animation.ANIMATIONTYPE_VECTOR3, Animation.ANIMATIONLOOPMODE_CONSTANT);
-
-                                var movement_array = msg.info.position;
-                                var rotation_array = msg.info.rotation;
-
-                                //console.log('movement array! ', movement_array);
-                                var movement_with_frame = [];
-                                var rotation_with_frame = [];
-                                var frame = 0;
-
-                                this.isUpdateComplete = false;
-
-                                if (movement_array && rotation_array) {
-
-                                    for (let vector of movement_array){
-                                        var pos = Object.assign(new Vector3(), vector);
-
-                                        movement_with_frame.push(
-                                            {
-                                                frame: frame, 
-                                                value: pos
-                                            }
-                                        )
-                                        frame = frame + 20; 
-                                    }
-
-                                    frame = 0;
-
-                                    for (let vector of rotation_array) {
-                                        var rot = Object.assign(new Vector3(), vector);
-
-                                        rotation_with_frame.push(
-                                            {
-                                                frame: frame,
-                                                value: rot
-                                            }
-                                        )
-                                        frame += 20;
-                                    }
-
-                                    object_animation.setKeys(movement_with_frame);
-                                    rotationAnimation.setKeys(rotation_with_frame);
-
-                                    item.animations = [];
-                                    item.animations.push(object_animation);
-                                    item.animations.push(rotationAnimation);
-
-                                    this.scene.beginWeightedAnimation(item, 0, frame - 20, 1.0, false, 1.0, () => {
-                                        frame = 0;
-                                        this.isUpdateComplete = true;
-
-                                        // intended to update positions after animation is complete
-                                        item!.position = Object.assign(item!.position, movement_array[-1]);  // will go to most recent position
-                                        //item!.rotation = Object.assign(item!.rotation, msg.info.rotation);
-                                        item!.rotation = Object.assign(item!.rotation, rotation_array[-1]);
-                                        item!.scaling = Object.assign(item!.scaling, msg.info.scaling);
-
-                                        this.scene.removeAnimation(object_animation);
-                                        this.scene.removeAnimation(rotationAnimation);
-                                    });
-
-                                }
-                            }
-                        }
+                        this.animateItem(item, msg);
 
                         if (msg.info.selected) {  // if other user has object selected, highlight in their color and disable selection
                             console.log("item selected!!!");
