@@ -77,7 +77,7 @@ class Game
     private rightHand: AbstractMesh;
     private selectedObject: AbstractMesh | null;
     private prevObjPos: Vector3 | null;
-    private minMove = 1;
+    private minMove = 0.22;
 
     private client: any;
     private user = "";
@@ -105,6 +105,8 @@ class Game
     //private colorWidget: ;
     //private textureWidget;
     private destroyWidget: AbstractMesh;
+    private currentWidget: AbstractMesh | null;
+    private widgetPos: Vector3 | null;
 
     // custom teleportation/selection
     private laserPointer: LinesMesh | null;
@@ -163,6 +165,9 @@ class Game
         (<StandardMaterial>this.destroyWidget.material).diffuseColor = new Color3(0.5, 0, 0);
         this.destroyWidget.isPickable = false;
         this.destroyWidget.isVisible = false;
+
+        this.currentWidget = null;
+        this.widgetPos = null;
 
         // teleport/select
         this.laserPointer = null;
@@ -466,6 +471,7 @@ class Game
                 this.rotationArray.push(this.selectedObject.absoluteRotationQuaternion.toEulerAngles().clone());
             } 
         }
+
     }
 
     private processControllerInput() {
@@ -476,18 +482,48 @@ class Game
 
     private onLeftSqueeze(component?: WebXRControllerComponent) {
         if (component?.changes.pressed) {
-            if (component?.pressed && this.selectedObject) {
-                if (this.leftHand.intersectsMesh(this.destroyWidget, true)) {  // destroy selected object if widget is selected
-                    this.envObjects.delete(this.selectedObject.name);
-
-                    Messages.sendMessage(false, this.createMessage(MessageType.remove, this.selectedObject.name));
-                    this.selectedObject.dispose();
-                    this.selectedObject = null;
-
-                    this.destroyWidget.isVisible = false;
+            if (component?.pressed) {// && this.selectedObject) {
+                if (this.selectedObject && this.leftHand.intersectsMesh(this.destroyWidget, true)) {  // destroy selected object if widget is selected
+                    this.currentWidget = this.destroyWidget;
+                    this.widgetPos = this.destroyWidget.position.clone();
+                    this.destroyWidget.setParent(this.leftHand);
                 }
+            } else { // release grabbed object
+                //console.log("distance: " + Vector3.Distance(this.currentWidget!.absolutePosition.clone(), this.rightHand.absolutePosition.clone()));
+                if (this.currentWidget) {
+                    if (this.selectedObject && Vector3.Distance(this.currentWidget.absolutePosition.clone(), this.rightHand.absolutePosition.clone()) > this.minMove) {
+                        if (this.currentWidget.name.startsWith("destroy")) {
+                            console.log("destroy");
+                            this.envObjects.delete(this.selectedObject.name);
+                            Messages.sendMessage(false, this.createMessage(MessageType.remove, this.selectedObject.name));
+
+                            this.selectedObject.dispose();
+                            this.selectedObject = null;
+                            this.destroyWidget.isVisible = false;
+
+                            //this.destroyWidget.position = new Vector3(0, -0.07, -0.11);
+                        }
+                    }
+
+                    this.currentWidget.parent = this.rightController!.pointer;
+                    this.currentWidget.position = this.widgetPos!;
+                    this.currentWidget = null;
+                }
+
+                    //Messages.sendMessage(false, this.createMessage(MessageType.remove, this.selectedObject.name));
+                    //this.selectedObject.dispose();
+                    //this.selectedObject = null;
+
+                    //this.destroyWidget.isVisible = false;
+                    //this.destroyWidget.parent = this.rightHand;
+                    //this.currentWidget = null;
+                //} else if (this.currentWidget) {
+                //    this.currentWidget.parent = this.rightHand;
+                //    this.currentWidget = null;
+                //}
             }
         }
+
     }
 
     private onRightSqueeze(component?: WebXRControllerComponent) {
