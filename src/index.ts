@@ -4,7 +4,7 @@
 
 import { Engine } from "@babylonjs/core/Engines/engine"; 
 import { Scene } from "@babylonjs/core/scene";
-import { Vector3, Color3 } from "@babylonjs/core/Maths/math";
+import { Vector3, Color3, Color4 } from "@babylonjs/core/Maths/math";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { UniversalCamera } from "@babylonjs/core/Cameras/universalCamera";
 import { WebXRControllerComponent } from "@babylonjs/core/XR/motionController/webXRControllercomponent";
@@ -25,6 +25,12 @@ import { Mesh } from "@babylonjs/core/Meshes/mesh";
 import { PointerEventTypes, PointerInfo } from "@babylonjs/core/Events/pointerEvents";
 import { Animation } from "@babylonjs/core/Animations/animation";
 import { LinesMesh } from "@babylonjs/core/Meshes/linesMesh";
+import { Ray } from "@babylonjs/core/Culling/ray";
+import { Axis } from "@babylonjs/core/Maths/math.axis";
+import { Quaternion } from "@babylonjs/core/Maths/math.vector";
+import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
+import { StackPanel } from "@babylonjs/gui/2D/controls/stackPanel";
+import { Button } from "@babylonjs/gui/2D/controls/button";
 
 import * as MATRIX from "matrix-js-sdk";
 
@@ -82,6 +88,7 @@ class Game
     private guiPlane: AbstractMesh | null;
     private loginStatus: AbstractMesh | null;
     private syncStatus: AbstractMesh | null;
+    
     private black = "#070707";
     private gray = "#707070";
 
@@ -89,7 +96,7 @@ class Game
     private envObjects: Map<string, AbstractMesh>;
     private userColor: Color3;
     private isUpdateComplete: Boolean | null;
-    private hasMoved: boolean = false;
+    private tutorialStatus: AbstractMesh | null;
 
     private failedLogin: TextBlock | null;
 
@@ -102,6 +109,15 @@ class Game
     //private colorWidget: ;
     //private textureWidget;
     private destroyWidget: AbstractMesh;
+
+    // custom teleportation/selection
+    private laserPointer: LinesMesh | null;
+    private groundMeshes: Array<AbstractMesh>;
+    private teleportPoint: Vector3 | null;
+    private teleportImage: Mesh;
+    private rotationNode: TransformNode;
+    private headsetRotation: Quaternion | null;
+    private trackControllers: Vector3 | null = null;
 
     constructor()
     {
@@ -135,12 +151,13 @@ class Game
         this.loginStatus = null;
         this.failedLogin = null;
         this.syncStatus = null;
+        this.tutorialStatus = null; 
 
         this.envUsers = new Map();
         this.envObjects = new Map();
         this.userColor = new Color3(Math.random(), Math.random(), Math.random());
 
-        // intended to keep track of motion of object selected 
+        // track selected object motion
         this.frame = 0;
         this.movementArray = [];
         this.rotationArray = [];
@@ -152,6 +169,20 @@ class Game
         this.destroyWidget.isPickable = false;
         this.destroyWidget.isVisible = false;
 
+        // teleport/select
+        this.laserPointer = null;
+        this.groundMeshes = [];
+        this.teleportPoint = null;
+
+        this.teleportImage = MeshBuilder.CreateCylinder("teleportImage", { height: 0.3, diameterTop: 0.2, diameterBottom: 0 }, this.scene);
+        var material = new StandardMaterial("imageMat", this.scene);
+        material.emissiveColor = new Color3(0, 0.3, 0);
+        this.teleportImage.material = material;
+        this.teleportImage.isVisible = false;
+        this.teleportImage.isPickable = false;
+
+        this.rotationNode = new TransformNode("rotationNode", this.scene);
+        this.headsetRotation = null;
     }
 
     start() : void 
@@ -201,8 +232,8 @@ class Game
             skyboxColor: new Color3(0, 0, 0)
         });
 
-        // Make sure the ground and skybox are not pickable!
-        environment!.ground!.isPickable = false;
+        // Make sure the skybox is not pickable!
+        //environment!.ground!.isPickable = false;
         environment!.skybox!.isPickable = false;
 
         // Creates the XR experience helper
@@ -211,20 +242,22 @@ class Game
         // Assigns the web XR camera to a member variable
         this.xrCamera = xrHelper.baseExperience.camera;
 
-        // Update user after teleportation
-        this.xrCamera.onAfterCameraTeleport.add((eventData, state) => {
-            Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
-            this.hasMoved = true;
-        });
-
-
         // Remove default teleportation
-        //xrHelper.teleportation.dispose();
-        xrHelper.teleportation.addFloorMesh(environment!.ground!);
+        xrHelper.teleportation.dispose();
+        //xrHelper.teleportation.addFloorMesh(environment!.ground!);
+        this.groundMeshes.push(environment!.ground!);
 
-        // There is a bug in Babylon 4.1 that fails to reenable pointer selection after a teleport
-        // This is a hacky workaround that disables a different unused feature instead
-        xrHelper.teleportation.setSelectionFeature(xrHelper.baseExperience.featuresManager.getEnabledFeature("xr-background-remover"));
+        // Create points for the laser pointer
+        var laserPoints = [];
+        laserPoints.push(new Vector3(0, 0, 0));
+        laserPoints.push(new Vector3(0, 0, 1));
+
+        // create laser pointer
+        this.laserPointer = MeshBuilder.CreateLines("laserPointer", { points: laserPoints }, this.scene);
+        this.laserPointer.color = Color3.White();
+        this.laserPointer.alpha = .5;
+        this.laserPointer.visibility = 0;
+        this.laserPointer.isPickable = false;
 
         // Assign the left and right controllers to member variables
         xrHelper.input.onControllerAddedObservable.add((inputSource) => {
@@ -241,16 +274,20 @@ class Game
 
                 this.destroyWidget.parent = this.rightController.pointer;
                 this.destroyWidget.position = new Vector3(0, -0.07, -0.11);
+
+                this.laserPointer!.parent = this.rightController.pointer;
             }
             else 
             {
                 this.leftController = inputSource;
                 this.leftHand.parent = this.leftController.grip!;
                 this.leftHand.isVisible = true;
+
+                this.rotationNode.parent = this.leftController.pointer;
             }
 
             //Messages.sendMessage(false, this.createUpdate(this.user));
-            Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
+            //Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
         });
 
         // Don't forget to deparent objects from the controllers or they will be destroyed!
@@ -259,21 +296,17 @@ class Game
             if (inputSource.uniqueId.endsWith("right")) {
                 this.rightHand.parent = null;
                 this.rightHand.isVisible = false;
+
+                this.laserPointer!.parent = null;
+                this.laserPointer!.visibility = 0;
             } else {
                 this.leftHand.parent = null;
                 this.leftHand.isVisible = false;
+
+                this.rotationNode.parent = null;
             }
 
             if (!this.rightHand.isVisible && !this.leftHand.isVisible) {
-                //var remove = {
-                //    status: "remove",
-                //    type: "user",
-                //    id: this.user,
-                //    info: {
-                        
-                //    }
-                //}
-                //Messages.sendMessage(false, JSON.stringify(remove));  // TODO
                 Messages.sendMessage(false, this.createMessage(MessageType.remove, this.user));
                 this.client.logout();
                 this.client.stopClient();
@@ -352,6 +385,58 @@ class Game
         syncing.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
         syncMesh.addControl(syncing);
 
+        // direction status page for even more visual feedback for tutorial
+        this.tutorialStatus = MeshBuilder.CreatePlane("tutorialStatus", {}, this.scene);
+        this.tutorialStatus.position = this.guiPlane.position.clone();
+        this.tutorialStatus.isPickable = false;
+        this.tutorialStatus.isVisible = false;
+        
+        var tutorialMesh = AdvancedDynamicTexture.CreateForMesh(this.tutorialStatus, 512, 512);
+        tutorialMesh.background = this.black;
+        
+        var conjureText = new TextBlock();
+        conjureText.text = "Directions Overview \n 1. Use the right grip to conjure up an item \n 2. Hold right trigger to move that object around!";
+        conjureText.color = "white";
+        conjureText.fontSize = 20;
+        conjureText.textHorizontalAlignment = TextBlock.HORIZONTAL_ALIGNMENT_CENTER;
+        conjureText.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
+        tutorialMesh.addControl(conjureText);
+
+        // Create a parent transform for the object configuration panel
+        var configTransform = new TransformNode("textTransform");
+
+        // Create a plane for the object configuration panel
+        var configPlane = MeshBuilder.CreatePlane("configPlane", {width: 0.45, height: 0.45}, this.scene);
+        configPlane.position = new Vector3(-0.3, 2.3, 1);
+        configPlane.parent = configTransform;
+
+        var button = Button.CreateImageButton(
+            "button",
+            "Tutorial of Basic Controller Abilities", 
+            // question mark photo 
+            "/assets/question_mark.jpg"
+          );
+
+        button.textBlock!.color = "white"; 
+        button.textBlock!.fontSize = 20; 
+        
+        // // Create a dynamic texture the object configuration panel
+        var configTexture = AdvancedDynamicTexture.CreateForMesh(configPlane, 256, 256);
+        configTexture.background = (new Color4(.5, .5, .5, .25)).toHexString();
+        configTexture.addControl(button); 
+
+        button.onPointerClickObservable.add((key) => {
+           if(this.tutorialStatus?.isVisible)
+                {
+                    this.tutorialStatus!.isVisible = false;
+                    console.log('stack panel should be disabled'); 
+                }
+
+            else {
+                this.tutorialStatus!.isVisible = true;
+                console.log('stack panel should be re-enabled'); 
+            }}
+        )
 
         // keyboard to enter user/password
         var virtualKeyboard = VirtualKeyboard.CreateDefaultLayout("virtualKeyboard");
@@ -420,10 +505,11 @@ class Game
     // The main update loop will be executed once per frame before the scene is rendered
     private update() : void
     {
-        // attempt to fix controllers not moving after teleportation
-        if (this.hasMoved) {
-            Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
-            this.hasMoved = false;
+        if (this.trackControllers) {// && this.trackControllers != this.leftController?.pointer.absolutePosition) {
+            if (Vector3.Distance(this.trackControllers, this.leftController!.pointer.absolutePosition)) {
+                Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
+                this.trackControllers = null;
+            } 
         }
 
         this.processControllerInput();
@@ -442,6 +528,7 @@ class Game
     private processControllerInput() {
         this.onLeftSqueeze(this.leftController?.motionController?.getComponent("xr-standard-squeeze"));
         this.onRightSqueeze(this.rightController?.motionController?.getComponent("xr-standard-squeeze"));
+        this.onRightThumbstick(this.rightController?.motionController?.getComponent("xr-standard-thumbstick"));
     }
 
     private onLeftSqueeze(component?: WebXRControllerComponent) {
@@ -477,12 +564,79 @@ class Game
         }
     }
 
+    // custom teleportation - from Assignment 6
+    private onRightThumbstick(component?: WebXRControllerComponent) {
+        if (component?.changes.axes) {
+            if (component.axes.y < -.75) {
+                // Create a new ray cast
+                var ray = new Ray(this.rightController!.pointer.position, this.rightController!.pointer.forward, 20);
+                var pickInfo = this.scene.pickWithRay(ray);
+
+                // If the ray cast intersected a ground mesh
+                if (pickInfo?.hit && this.groundMeshes.includes(pickInfo.pickedMesh!)) {
+                    this.teleportPoint = pickInfo.pickedPoint;
+                    this.laserPointer!.scaling.z = pickInfo.distance;
+                    this.laserPointer!.visibility = 1;
+                    this.teleportImage.position = this.teleportPoint!.clone();
+
+                    // teleport location indicator  
+                    this.teleportImage.isVisible = true;
+                    if (!this.headsetRotation) {
+                        this.headsetRotation = this.xrCamera!.rotationQuaternion.clone();
+                        var eulers = this.headsetRotation.toEulerAngles();
+                        this.headsetRotation = Quaternion.FromEulerAngles(0, eulers.y, 0);
+                    }
+
+                    // rotation
+
+                    // find rotation of tagalong node in world space
+                    this.rotationNode.setParent(null);
+                    var rotate = this.rotationNode.rotation.clone();
+                    this.rotationNode.setParent(this.leftController!.pointer);
+
+                    this.teleportImage.rotationQuaternion = this.headsetRotation.clone();
+                    var addRotation = Quaternion.FromEulerAngles(-Math.PI / 2, -rotate.z, 0);
+                    this.teleportImage.rotationQuaternion?.multiplyInPlace(addRotation);
+                }
+            } else if (component.axes.y == 0) {
+                this.laserPointer!.visibility = 0;
+                this.teleportImage.isVisible = false;
+
+                // If we have a valid target point, then teleport the user
+                if (this.teleportPoint) {
+                    this.xrCamera!.position.x = this.teleportPoint.x;
+                    this.xrCamera!.position.y = this.teleportPoint.y + this.xrCamera!.realWorldHeight;
+                    this.xrCamera!.position.z = this.teleportPoint.z;
+
+                    // rotation
+
+                    // find rotation of tagalong node in world space
+                    this.rotationNode.setParent(null);
+                    var rotate = this.rotationNode.rotation.clone();
+                    this.rotationNode.setParent(this.leftController!.pointer);
+
+                    var cameraRotation = Quaternion.FromEulerAngles(0, -rotate.z, 0);
+                    this.xrCamera!.rotationQuaternion.multiplyInPlace(cameraRotation);
+
+                    this.teleportPoint = null;
+                    this.headsetRotation = null;
+
+                    if (this.leftController) {
+                        this.trackControllers = this.leftController.pointer.absolutePosition.clone();
+                    }
+                }
+
+            }
+        }
+    }
+
     // object manipulation
     private processPointer(pointerInfo: PointerInfo) {
         switch (pointerInfo.type) {
             case PointerEventTypes.POINTERDOWN:
-                if (pointerInfo.pickInfo?.hit && pointerInfo.pickInfo.pickedMesh?.name != "guiPlane") {
+                if (pointerInfo.pickInfo?.hit && !pointerInfo.pickInfo.pickedMesh?.name.endsWith("Plane")) {
                     this.selectedObject = pointerInfo.pickInfo.pickedMesh;
+                    console.log("mesh name: " + this.selectedObject?.name);
 
                     if (this.selectedObject) {
                         this.prevObjPos = this.selectedObject.absolutePosition.clone();
@@ -785,6 +939,9 @@ class Game
 
             // create self user object for other clients
             Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
+
+            // allows user to view tutorial when first starting to run 
+            this.tutorialStatus!.isVisible = true; 
 
             // add message listener to room
             this.client.on("event", (event: any) => {
