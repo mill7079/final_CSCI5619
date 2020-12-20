@@ -31,6 +31,7 @@ import { Quaternion } from "@babylonjs/core/Maths/math.vector";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
 import { StackPanel } from "@babylonjs/gui/2D/controls/stackPanel";
 import { Button } from "@babylonjs/gui/2D/controls/button";
+import { AssetsManager, MeshAssetTask } from "@babylonjs/core/Misc/assetsManager";
 
 import * as MATRIX from "matrix-js-sdk";
 
@@ -78,9 +79,9 @@ class Game
     private leftHand: AbstractMesh;
     private rightHand: AbstractMesh;
     private selectedObject: AbstractMesh | null;
-    private prevObjPos: Vector3 | null;
+    //private prevObjPos: Vector3 | null;
     private minMove = 0.22;
-
+    
     private client: any;
     private user = "";
     private room = Messages.room;
@@ -106,9 +107,9 @@ class Game
     private rotationArray: Vector3[];
 
     // in-environment GUI items
-    //private colorWidget: ;
-    //private textureWidget;
     private destroyWidget: AbstractMesh;
+    private colorWidget: AbstractMesh;
+    private textureWidget: AbstractMesh;
     private currentWidget: AbstractMesh | null;
     private widgetPos: Vector3 | null;
 
@@ -142,7 +143,7 @@ class Game
         this.rightHand.isPickable = false;
         this.rightHand.isVisible = false;
         this.selectedObject = null;
-        this.prevObjPos = null;
+        //this.prevObjPos = null;
 
         this.isUpdateComplete = true;
 
@@ -170,6 +171,21 @@ class Game
         (<StandardMaterial>this.destroyWidget.material).diffuseColor = new Color3(0.5, 0, 0);
         this.destroyWidget.isPickable = false;
         this.destroyWidget.isVisible = false;
+
+        // grab this to change color of selected object
+        this.colorWidget = MeshBuilder.CreateCylinder("colorWidget", { height: 0.05, diameter: 0.05 }, this.scene);
+        this.colorWidget.material = new StandardMaterial("colorMaterial", this.scene);
+        (<StandardMaterial>this.colorWidget.material).diffuseColor = new Color3(0, 0.5, 0);
+        this.colorWidget.isPickable = false;
+        //this.colorWidget.isVisible = false;
+
+        // grab this to change texture of selected object
+        this.textureWidget = MeshBuilder.CreateBox("textureWidget", { size: 0.05 }, this.scene);
+        this.textureWidget.material = new StandardMaterial("textureWidget", this.scene);
+        (<StandardMaterial>this.textureWidget.material).diffuseColor = new Color3(0, 0, 0.5);
+        this.textureWidget.isPickable = false;
+        //this.textureWidget.isVisible = false;
+
 
         this.currentWidget = null;
         this.widgetPos = null;
@@ -278,7 +294,13 @@ class Game
                 this.rightHand.isVisible = true;
 
                 this.destroyWidget.parent = this.rightController.pointer;
-                this.destroyWidget.position = new Vector3(0, -0.07, -0.11);
+                this.destroyWidget.position = new Vector3(0, -0.06, -0.11);
+
+                this.colorWidget.parent = this.rightController.pointer;
+                this.colorWidget.position = new Vector3(-0.06, 0.04, -0.11);
+
+                this.textureWidget.parent = this.rightController.pointer;
+                this.textureWidget.position = new Vector3(0.06, 0.04, -0.11);
 
                 this.laserPointer!.parent = this.rightController.pointer;
             }
@@ -317,8 +339,6 @@ class Game
                 this.client.stopClient();
             }
         });
-
-        
 
         
         // create login gui
@@ -532,21 +552,49 @@ class Game
     }
 
     private processControllerInput() {
+        this.onRightTrigger(this.rightController?.motionController?.getComponent("xr-standard-trigger"));
+        this.onLeftTrigger(this.leftController?.motionController?.getComponent("xr-standard-trigger"));
         this.onLeftSqueeze(this.leftController?.motionController?.getComponent("xr-standard-squeeze"));
         this.onRightSqueeze(this.rightController?.motionController?.getComponent("xr-standard-squeeze"));
         this.onRightThumbstick(this.rightController?.motionController?.getComponent("xr-standard-thumbstick"));
     }
 
+    private onLeftTrigger(component?: WebXRControllerComponent) {
+        if (component?.changes.pressed) {
+            if (component?.pressed) {
+
+            }
+        }
+    }
+
+    private onRightTrigger(component?: WebXRControllerComponent) {
+        if (component?.changes.pressed) {
+            if (component?.pressed) {
+
+            }
+        }
+    }
+
     private onLeftSqueeze(component?: WebXRControllerComponent) {
         if (component?.changes.pressed) {
             if (component?.pressed) {// && this.selectedObject) {
-                if (this.selectedObject && this.leftHand.intersectsMesh(this.destroyWidget, true)) {  // destroy selected object if widget is selected
-                    this.currentWidget = this.destroyWidget;
-                    this.widgetPos = this.destroyWidget.position.clone();
-                    this.destroyWidget.setParent(this.leftHand);
+                if (this.selectedObject) {
+                    if (this.leftHand.intersectsMesh(this.destroyWidget, true)) {  // destroy selected object if widget is selected
+                        this.currentWidget = this.destroyWidget;
+                        //this.widgetPos = this.destroyWidget.position.clone();
+                        //this.destroyWidget.setParent(this.leftHand);
+                    } else if (this.leftHand.intersectsMesh(this.colorWidget, true)) {
+                        this.currentWidget = this.colorWidget;
+                    } else if (this.leftHand.intersectsMesh(this.textureWidget, true)) {
+                        this.currentWidget = this.textureWidget;
+                    }
+
+                    if (this.currentWidget) {
+                        this.widgetPos = this.currentWidget.position.clone();
+                        this.currentWidget.setParent(this.leftHand);
+                    }
                 }
             } else { // release grabbed object
-                //console.log("distance: " + Vector3.Distance(this.currentWidget!.absolutePosition.clone(), this.rightHand.absolutePosition.clone()));
                 if (this.currentWidget) {
                     if (this.selectedObject && Vector3.Distance(this.currentWidget.absolutePosition.clone(), this.rightHand.absolutePosition.clone()) > this.minMove) {
                         if (this.currentWidget.name.startsWith("destroy")) {
@@ -557,8 +605,10 @@ class Game
                             this.selectedObject.dispose();
                             this.selectedObject = null;
                             this.destroyWidget.isVisible = false;
-
-                            //this.destroyWidget.position = new Vector3(0, -0.07, -0.11);
+                        } else if (this.currentWidget.name.startsWith("color")) {
+                            console.log("color");
+                        } else if (this.currentWidget.name.startsWith("texture")) {
+                            console.log("texture");
                         }
                     }
 
@@ -670,12 +720,13 @@ class Game
     private processPointer(pointerInfo: PointerInfo) {
         switch (pointerInfo.type) {
             case PointerEventTypes.POINTERDOWN:
+                //console.log("origin mesh: " + pointerInfo.pickInfo?.originMesh?.name);
                 if (pointerInfo.pickInfo?.hit && !pointerInfo.pickInfo.pickedMesh?.name.endsWith("Plane")) {
                     this.selectedObject = pointerInfo.pickInfo.pickedMesh;
-                    console.log("mesh name: " + this.selectedObject?.name);
+                    //console.log("mesh name: " + this.selectedObject?.name);
 
                     if (this.selectedObject) {
-                        this.prevObjPos = this.selectedObject.absolutePosition.clone();
+                        //this.prevObjPos = this.selectedObject.absolutePosition.clone();
                         this.selectedObject.setParent(this.rightHand);
 
                         // push initial orientation to tracker arrays
@@ -701,7 +752,7 @@ class Game
                     Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
 
                     this.selectedObject = null;
-                    this.prevObjPos = null;
+                    //this.prevObjPos = null;
                 }
 
                 this.destroyWidget.isVisible = false;
