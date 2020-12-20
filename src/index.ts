@@ -79,8 +79,7 @@ class Game
     private leftHand: AbstractMesh;
     private rightHand: AbstractMesh;
     private selectedObject: AbstractMesh | null;
-    //private prevObjPos: Vector3 | null;
-    private minMove = 0.22;
+    private minMove = 0.22;  // activation distance of widgets
     
     private client: any;
     private user = "";
@@ -133,6 +132,7 @@ class Game
         // Creates a basic Babylon Scene object
         this.scene = new Scene(this.engine);   
 
+        // general functionality
         this.xrCamera = null;
         this.leftController = null;
         this.rightController = null;
@@ -143,19 +143,21 @@ class Game
         this.rightHand.isPickable = false;
         this.rightHand.isVisible = false;
         this.selectedObject = null;
-        //this.prevObjPos = null;
 
+        // used for animation
         this.isUpdateComplete = true;
 
         // create client on server
         this.client = Messages.client;
 
+        // admin GUI things
         this.guiPlane = null;
         this.loginStatus = null;
         this.failedLogin = null;
         this.syncStatus = null;
         this.tutorialStatus = null; 
 
+        // synced environment
         this.envUsers = new Map();
         this.envObjects = new Map();
         this.userColor = new Color3(Math.random(), Math.random(), Math.random());
@@ -177,20 +179,20 @@ class Game
         this.colorWidget.material = new StandardMaterial("colorMaterial", this.scene);
         (<StandardMaterial>this.colorWidget.material).diffuseColor = new Color3(0, 0.5, 0);
         this.colorWidget.isPickable = false;
-        //this.colorWidget.isVisible = false;
+        this.colorWidget.isVisible = false;
 
         // grab this to change texture of selected object
         this.textureWidget = MeshBuilder.CreateBox("textureWidget", { size: 0.05 }, this.scene);
         this.textureWidget.material = new StandardMaterial("textureWidget", this.scene);
         (<StandardMaterial>this.textureWidget.material).diffuseColor = new Color3(0, 0, 0.5);
         this.textureWidget.isPickable = false;
-        //this.textureWidget.isVisible = false;
+        this.textureWidget.isVisible = false;
 
-
+        // widget handling
         this.currentWidget = null;
         this.widgetPos = null;
 
-        // teleport/select
+        // teleportation handling
         this.laserPointer = null;
         this.groundMeshes = [];
         this.teleportPoint = null;
@@ -559,25 +561,37 @@ class Game
         this.onRightThumbstick(this.rightController?.motionController?.getComponent("xr-standard-thumbstick"));
     }
 
+    // set selected object to move with correct hand depending on which hand does the selection
     private onLeftTrigger(component?: WebXRControllerComponent) {
         if (component?.changes.pressed) {
             if (component?.pressed) {
+                if (this.selectedObject && !(this.selectedObject.parent)) { // object is selected but does not have a parent
+                    this.selectedObject.setParent(this.leftHand);
 
+                    this.destroyWidget.parent = this.leftController!.pointer;
+                    this.colorWidget.parent = this.leftController!.pointer;
+                    this.textureWidget.parent = this.leftController!.pointer;
+                }
             }
         }
     }
-
     private onRightTrigger(component?: WebXRControllerComponent) {
         if (component?.changes.pressed) {
             if (component?.pressed) {
+                if (this.selectedObject && !(this.selectedObject.parent)) { // object is selected but does not have a parent
+                    this.selectedObject.setParent(this.rightHand);
 
+                    this.destroyWidget.parent = this.rightController!.pointer;
+                    this.colorWidget.parent = this.rightController!.pointer;
+                    this.textureWidget.parent = this.rightController!.pointer;
+                }
             }
         }
     }
 
     private onLeftSqueeze(component?: WebXRControllerComponent) {
         if (component?.changes.pressed) {
-            if (component?.pressed) {// && this.selectedObject) {
+            if (component?.pressed) {
                 if (this.selectedObject) {
                     if (this.leftHand.intersectsMesh(this.destroyWidget, true)) {  // destroy selected object if widget is selected
                         this.currentWidget = this.destroyWidget;
@@ -596,56 +610,57 @@ class Game
                 }
             } else { // release grabbed object
                 if (this.currentWidget) {
-                    if (this.selectedObject && Vector3.Distance(this.currentWidget.absolutePosition.clone(), this.rightHand.absolutePosition.clone()) > this.minMove) {
-                        if (this.currentWidget.name.startsWith("destroy")) {
-                            console.log("destroy");
-                            this.envObjects.delete(this.selectedObject.name);
-                            Messages.sendMessage(false, this.createMessage(MessageType.remove, this.selectedObject.name));
-
-                            this.selectedObject.dispose();
-                            this.selectedObject = null;
-                            this.destroyWidget.isVisible = false;
-                        } else if (this.currentWidget.name.startsWith("color")) {
-                            console.log("color");
-                        } else if (this.currentWidget.name.startsWith("texture")) {
-                            console.log("texture");
-                        }
-                    }
+                    //if (this.selectedObject && Vector3.Distance(this.currentWidget.absolutePosition.clone(), this.rightHand.absolutePosition.clone()) > this.minMove) {
+                    //    if (this.currentWidget.name.startsWith("destroy")) {
+                    //        this.destroyObj();
+                    //    } else if (this.currentWidget.name.startsWith("color")) {
+                    //        console.log("color");
+                    //    } else if (this.currentWidget.name.startsWith("texture")) {
+                    //        console.log("texture");
+                    //    }
+                    //}
+                    this.widgetEvent(this.rightHand.absolutePosition.clone());
 
                     this.currentWidget.parent = this.rightController!.pointer;
                     this.currentWidget.position = this.widgetPos!;
                     this.currentWidget = null;
                 }
-
-                    //Messages.sendMessage(false, this.createMessage(MessageType.remove, this.selectedObject.name));
-                    //this.selectedObject.dispose();
-                    //this.selectedObject = null;
-
-                    //this.destroyWidget.isVisible = false;
-                    //this.destroyWidget.parent = this.rightHand;
-                    //this.currentWidget = null;
-                //} else if (this.currentWidget) {
-                //    this.currentWidget.parent = this.rightHand;
-                //    this.currentWidget = null;
-                //}
             }
         }
 
     }
 
+    // handle widget selection, create objects
     private onRightSqueeze(component?: WebXRControllerComponent) {
         if (component?.changes.pressed) {
             if (component?.pressed) {
+                if (this.selectedObject) {
+                    if (this.rightHand.intersectsMesh(this.destroyWidget, true)) {
+                        this.currentWidget = this.destroyWidget;
+                    } else if (this.rightHand.intersectsMesh(this.colorWidget, true)) {
+                        this.currentWidget = this.colorWidget;
+                    } else if (this.rightHand.intersectsMesh(this.textureWidget, true)) {
+                        this.currentWidget = this.textureWidget;
+                    } else {
+                        this.createObject();
+                    }
 
-                // create random polyhedron
-                var num = Math.round(Math.random() * 14);
-                var newMesh = MeshBuilder.CreatePolyhedron("name", { type: num, size: 1 }, this.scene);
-                newMesh.name = this.user + newMesh.uniqueId.toString();
-                newMesh.position = new Vector3(2, 3, 4);
-                this.envObjects.set(newMesh.name, newMesh);
+                    // grab widget
+                    if (this.currentWidget) {
+                        this.widgetPos = this.currentWidget.position.clone();
+                        this.currentWidget.setParent(this.rightHand);
+                    }
+                } else {
+                    this.createObject();
+                }
+            } else { // release grabbed object
+                if (this.currentWidget) {
+                    this.widgetEvent(this.leftHand.absolutePosition.clone());
 
-                // send message creation to other clients
-                Messages.sendMessage(false, this.createMessage(MessageType.item, newMesh.name, true));
+                    this.currentWidget.parent = this.leftController!.pointer;
+                    this.currentWidget.position = this.widgetPos!;
+                    this.currentWidget = null;
+                }
             }
         }
     }
@@ -727,7 +742,7 @@ class Game
 
                     if (this.selectedObject) {
                         //this.prevObjPos = this.selectedObject.absolutePosition.clone();
-                        this.selectedObject.setParent(this.rightHand);
+                        //this.selectedObject.setParent(this.rightHand);
 
                         // push initial orientation to tracker arrays
                         this.frame = 0;
@@ -741,6 +756,8 @@ class Game
 
                         // enable object destruction
                         this.destroyWidget.isVisible = true;
+                        this.colorWidget.isVisible = true;
+                        this.textureWidget.isVisible = true;
                     }
                 }
                 break;
@@ -756,7 +773,52 @@ class Game
                 }
 
                 this.destroyWidget.isVisible = false;
+                this.colorWidget.isVisible = false;
+                this.textureWidget.isVisible = false;
                 break;
+        }
+    }
+
+    // create random polyhedron - called in rightSqueeze
+    private createObject() {
+        // create random polyhedron
+        var num = Math.round(Math.random() * 14);
+        var newMesh = MeshBuilder.CreatePolyhedron("name", { type: num, size: 1 }, this.scene);
+        newMesh.name = this.user + newMesh.uniqueId.toString();
+        newMesh.position = new Vector3(2, 3, 4);
+        this.envObjects.set(newMesh.name, newMesh);
+
+        // send message creation to other clients
+        Messages.sendMessage(false, this.createMessage(MessageType.item, newMesh.name, true));
+    }
+
+    // handle widget events
+    private widgetEvent(parentPos: Vector3) {
+        if (this.selectedObject && Vector3.Distance(this.currentWidget!.absolutePosition.clone(), parentPos) > this.minMove) {
+            if (this.currentWidget!.name.startsWith("destroy")) {
+                this.destroyObj();
+            } else if (this.currentWidget!.name.startsWith("color")) {
+                console.log("color");
+            } else if (this.currentWidget!.name.startsWith("texture")) {
+                console.log("texture");
+            }
+        }
+    }
+
+    // destroy object - called when destroyWidget is activated
+    private destroyObj() {
+        console.log("destroy");
+
+        if (this.selectedObject) {
+            this.envObjects.delete(this.selectedObject.name);
+            Messages.sendMessage(false, this.createMessage(MessageType.remove, this.selectedObject.name));
+
+            this.selectedObject.dispose();
+            this.selectedObject = null;
+
+            this.destroyWidget.isVisible = false;
+            this.colorWidget.isVisible = false;
+            this.textureWidget.isVisible = false;
         }
     }
 
