@@ -16,9 +16,7 @@ import { Logger } from "@babylonjs/core/Misc/logger";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder";
 import { AbstractMesh } from "@babylonjs/core/Meshes/abstractMesh";
 import { AdvancedDynamicTexture } from "@babylonjs/gui/2D/advancedDynamicTexture";
-import { InputPassword, InputText } from "@babylonjs/gui/2D/controls";
-import { VirtualKeyboard } from "@babylonjs/gui/2D/controls/virtualKeyboard";
-import { TextBlock } from "@babylonjs/gui/2D/controls/textBlock";
+import { InputPassword, InputText, VirtualKeyboard, TextBlock, ColorPicker, StackPanel, Button } from "@babylonjs/gui/2D/controls";
 import { SceneSerializer } from "@babylonjs/core/Misc/sceneSerializer";
 import { SceneLoader } from "@babylonjs/core/Loading/sceneLoader";
 import { Mesh } from "@babylonjs/core/Meshes/mesh";
@@ -29,9 +27,8 @@ import { Ray } from "@babylonjs/core/Culling/ray";
 import { Axis } from "@babylonjs/core/Maths/math.axis";
 import { Quaternion } from "@babylonjs/core/Maths/math.vector";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
-import { StackPanel } from "@babylonjs/gui/2D/controls/stackPanel";
-import { Button } from "@babylonjs/gui/2D/controls/button";
 import { AssetsManager, MeshAssetTask } from "@babylonjs/core/Misc/assetsManager";
+import { Texture } from "@babylonjs/core/Materials/Textures/texture";
 
 import * as MATRIX from "matrix-js-sdk";
 
@@ -107,10 +104,12 @@ class Game
 
     // in-environment GUI items
     private destroyWidget: AbstractMesh;
-    private colorWidget: AbstractMesh;
+    //private colorWidget: AbstractMesh;
     private textureWidget: AbstractMesh;
     private currentWidget: AbstractMesh | null;
     private widgetPos: Vector3 | null;
+    //private colorPicker: AbstractMesh;
+    private textureNode: TransformNode;
 
     // custom teleportation/selection
     private laserPointer: LinesMesh | null;
@@ -175,11 +174,20 @@ class Game
         this.destroyWidget.isVisible = false;
 
         // grab this to change color of selected object
-        this.colorWidget = MeshBuilder.CreateCylinder("colorWidget", { height: 0.05, diameter: 0.05 }, this.scene);
-        this.colorWidget.material = new StandardMaterial("colorMaterial", this.scene);
-        (<StandardMaterial>this.colorWidget.material).diffuseColor = new Color3(0, 0.5, 0);
-        this.colorWidget.isPickable = false;
-        this.colorWidget.isVisible = false;
+        //this.colorWidget = MeshBuilder.CreateCylinder("colorWidget", { height: 0.05, diameter: 0.05 }, this.scene);
+        //this.colorWidget.material = new StandardMaterial("colorMaterial", this.scene);
+        //(<StandardMaterial>this.colorWidget.material).diffuseColor = new Color3(0, 0.5, 0);
+        //this.colorWidget.isPickable = false;
+        //this.colorWidget.isVisible = false;
+
+        //this.colorPicker = MeshBuilder.CreatePlane("colorPlane", {}, this.scene);
+        //var colorTexture = AdvancedDynamicTexture.CreateForMesh(this.colorPicker, 512, 512);
+        //var color = new ColorPicker("colorPicker");
+        //colorTexture.addControl(color);
+        ////this.colorPicker.isVisible = false;
+        //color.onValueChangedObservable.add((color) => {
+        //    (<StandardMaterial>this.selectedObject?.material).diffuseColor.copyFrom(color);
+        //});
 
         // grab this to change texture of selected object
         this.textureWidget = MeshBuilder.CreateBox("textureWidget", { size: 0.05 }, this.scene);
@@ -187,6 +195,39 @@ class Game
         (<StandardMaterial>this.textureWidget.material).diffuseColor = new Color3(0, 0, 0.5);
         this.textureWidget.isPickable = false;
         this.textureWidget.isVisible = false;
+
+        this.textureNode = new TransformNode("textureNode", this.scene);
+
+        var textures: Texture[] = [];
+        textures.push(new Texture("assets/textures/purple.jpg", this.scene));
+        textures.push(new Texture("assets/textures/flowers.jpg", this.scene));
+        textures.push(new Texture("assets/textures/metal.jpg", this.scene));
+        textures.push(new Texture("assets/textures/rainbow.jpg", this.scene));
+        textures.push(new Texture("assets/textures/paint.jpg", this.scene));
+
+        for (let i = 0; i < textures.length; i++) {
+            let angle = (i *  2 * Math.PI) / textures.length;
+            let tex = textures[i];
+            let texBox = MeshBuilder.CreateBox("tex" + i, { size: 0.06 }, this.scene);
+            let texMat = new StandardMaterial("texMat" + i, this.scene);
+            texMat.diffuseTexture = tex;
+            texBox.material = texMat;
+            texBox.isVisible = false;
+            texBox.isPickable = false;
+
+            texBox.position = new Vector3(Math.sin(angle) / 5, 0, Math.cos(angle) / 5);
+            texBox.parent = this.textureNode;
+        }
+
+        //var tex1 = MeshBuilder.CreateBox("tex1", { size: 0.06 }, this.scene);
+        //var t1 = new Texture("assets/textures/purple.jpg", this.scene);
+        //var t1mat = new StandardMaterial("tex1Mat", this.scene);
+        //t1mat.diffuseTexture = t1;
+        //tex1.material = t1mat;
+        //tex1.position = new Vector3(0, 0.2, 0);
+        //tex1.isVisible = false;
+        //tex1.parent = this.textureNode;
+        //tex1.isPickable = false;
 
         // widget handling
         this.currentWidget = null;
@@ -295,14 +336,20 @@ class Game
                 this.rightHand.parent = this.rightController.grip!;
                 this.rightHand.isVisible = true;
 
-                this.destroyWidget.parent = this.rightController.pointer;
-                this.destroyWidget.position = new Vector3(0, -0.06, -0.11);
+                //this.destroyWidget.parent = this.rightController.pointer;
+                //this.destroyWidget.position = new Vector3(0, -0.06, -0.11);
 
-                this.colorWidget.parent = this.rightController.pointer;
-                this.colorWidget.position = new Vector3(-0.06, 0.04, -0.11);
+                //this.colorWidget.parent = this.rightController.pointer;
+                //this.colorWidget.position = new Vector3(-0.06, 0.04, -0.11);
 
                 this.textureWidget.parent = this.rightController.pointer;
-                this.textureWidget.position = new Vector3(0.06, 0.04, -0.11);
+                this.textureWidget.position = new Vector3(-0.06, 0.04, -0.11);
+
+                //this.textureWidget.parent = this.rightController.pointer;
+                //this.textureWidget.position = new Vector3(0.06, 0.04, -0.11);
+
+                this.destroyWidget.parent = this.rightController.pointer;
+                this.destroyWidget.position = new Vector3(0.06, 0.04, -0.11);
 
                 this.laserPointer!.parent = this.rightController.pointer;
             }
@@ -313,6 +360,9 @@ class Game
                 this.leftHand.isVisible = true;
 
                 this.rotationNode.parent = this.leftController.pointer;
+
+                //this.colorPicker.position = this.leftHand.absolutePosition.clone();
+                //this.colorPicker.position.x += 0.3;
             }
 
             //Messages.sendMessage(false, this.createUpdate(this.user));
@@ -505,7 +555,7 @@ class Game
 
                         // log user in
                         this.loginStatus!.isVisible = true;
-                        console.log('attempting to log in .....');
+                        //console.log('attempting to log in .....');
                         this.connect(this.user, inputPass.text);
                     }
 
@@ -545,10 +595,22 @@ class Game
         if (this.selectedObject) {
             this.frame++;
 
-            if (this.frame % 20 == 0){   // record position once every 20 frames
+            //if (this.frame % 20 == 0){   // record position once every 20 frames
+            console.log("selected obj pos: " + this.selectedObject.absolutePosition.clone());
+            console.log("movement array -1: " + this.movementArray[this.movementArray.length - 1]);
+            if (this.frame % 20 == 0 && this.movementArray.length > 0 && Vector3.Distance(this.selectedObject.absolutePosition.clone(), this.movementArray[this.movementArray.length - 1]) > 0.1) {
                 this.movementArray.push(this.selectedObject.getAbsolutePosition().clone());
                 this.rotationArray.push(this.selectedObject.absoluteRotationQuaternion.toEulerAngles().clone());
-            } 
+            }
+
+            // change texture of selected object if widget is active
+            if (this.textureNode.getChildMeshes()[0].isVisible) {
+                this.textureNode.getChildMeshes().forEach((mesh) => {
+                    if (this.leftHand.intersectsMesh(mesh, true) || this.rightHand.intersectsMesh(mesh, true)) {
+                        (<StandardMaterial>this.selectedObject!.material).diffuseTexture = (<StandardMaterial>mesh.material).diffuseTexture;
+                    }
+                });
+            }
         }
 
     }
@@ -569,8 +631,11 @@ class Game
                     this.selectedObject.setParent(this.leftHand);
 
                     this.destroyWidget.parent = this.leftController!.pointer;
-                    this.colorWidget.parent = this.leftController!.pointer;
+                    //this.colorWidget.parent = this.leftController!.pointer;
                     this.textureWidget.parent = this.leftController!.pointer;
+
+                    // send selection message to other clients
+                    Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
                 }
             }
         }
@@ -582,8 +647,11 @@ class Game
                     this.selectedObject.setParent(this.rightHand);
 
                     this.destroyWidget.parent = this.rightController!.pointer;
-                    this.colorWidget.parent = this.rightController!.pointer;
+                    //this.colorWidget.parent = this.rightController!.pointer;
                     this.textureWidget.parent = this.rightController!.pointer;
+
+                    // send selection message to other clients
+                    Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
                 }
             }
         }
@@ -595,10 +663,6 @@ class Game
                 if (this.selectedObject) {
                     if (this.leftHand.intersectsMesh(this.destroyWidget, true)) {  // destroy selected object if widget is selected
                         this.currentWidget = this.destroyWidget;
-                        //this.widgetPos = this.destroyWidget.position.clone();
-                        //this.destroyWidget.setParent(this.leftHand);
-                    } else if (this.leftHand.intersectsMesh(this.colorWidget, true)) {
-                        this.currentWidget = this.colorWidget;
                     } else if (this.leftHand.intersectsMesh(this.textureWidget, true)) {
                         this.currentWidget = this.textureWidget;
                     }
@@ -610,16 +674,8 @@ class Game
                 }
             } else { // release grabbed object
                 if (this.currentWidget) {
-                    //if (this.selectedObject && Vector3.Distance(this.currentWidget.absolutePosition.clone(), this.rightHand.absolutePosition.clone()) > this.minMove) {
-                    //    if (this.currentWidget.name.startsWith("destroy")) {
-                    //        this.destroyObj();
-                    //    } else if (this.currentWidget.name.startsWith("color")) {
-                    //        console.log("color");
-                    //    } else if (this.currentWidget.name.startsWith("texture")) {
-                    //        console.log("texture");
-                    //    }
-                    //}
-                    this.widgetEvent(this.rightHand.absolutePosition.clone());
+                    //this.widgetEvent(this.rightHand.absolutePosition.clone());
+                    this.widgetEvent(this.rightHand);
 
                     this.currentWidget.parent = this.rightController!.pointer;
                     this.currentWidget.position = this.widgetPos!;
@@ -637,9 +693,11 @@ class Game
                 if (this.selectedObject) {
                     if (this.rightHand.intersectsMesh(this.destroyWidget, true)) {
                         this.currentWidget = this.destroyWidget;
-                    } else if (this.rightHand.intersectsMesh(this.colorWidget, true)) {
-                        this.currentWidget = this.colorWidget;
-                    } else if (this.rightHand.intersectsMesh(this.textureWidget, true)) {
+                    }
+                    //else if (this.rightHand.intersectsMesh(this.colorWidget, true)) {
+                    //    this.currentWidget = this.colorWidget;
+                    //}
+                    else if (this.rightHand.intersectsMesh(this.textureWidget, true)) {
                         this.currentWidget = this.textureWidget;
                     } else {
                         this.createObject();
@@ -655,7 +713,8 @@ class Game
                 }
             } else { // release grabbed object
                 if (this.currentWidget) {
-                    this.widgetEvent(this.leftHand.absolutePosition.clone());
+                    //this.widgetEvent(this.leftHand.absolutePosition.clone());
+                    this.widgetEvent(this.leftHand);
 
                     this.currentWidget.parent = this.leftController!.pointer;
                     this.currentWidget.position = this.widgetPos!;
@@ -735,14 +794,13 @@ class Game
     private processPointer(pointerInfo: PointerInfo) {
         switch (pointerInfo.type) {
             case PointerEventTypes.POINTERDOWN:
+                //console.log("pointer DOWN");
                 //console.log("origin mesh: " + pointerInfo.pickInfo?.originMesh?.name);
                 if (pointerInfo.pickInfo?.hit && !pointerInfo.pickInfo.pickedMesh?.name.endsWith("Plane")) {
                     this.selectedObject = pointerInfo.pickInfo.pickedMesh;
                     //console.log("mesh name: " + this.selectedObject?.name);
 
                     if (this.selectedObject) {
-                        //this.prevObjPos = this.selectedObject.absolutePosition.clone();
-                        //this.selectedObject.setParent(this.rightHand);
 
                         // push initial orientation to tracker arrays
                         this.frame = 0;
@@ -751,30 +809,37 @@ class Game
                         this.movementArray.push(this.selectedObject.getAbsolutePosition().clone());  // need to push clone or it'll keep updating
                         this.rotationArray.push(this.selectedObject.absoluteRotationQuaternion.toEulerAngles().clone());
 
-                        // send selection message to other clients
-                        Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
-
-                        // enable object destruction
+                        // enable object manipulation
                         this.destroyWidget.isVisible = true;
-                        this.colorWidget.isVisible = true;
+                        //this.colorWidget.isVisible = true;
                         this.textureWidget.isVisible = true;
                     }
                 }
                 break;
             case PointerEventTypes.POINTERUP:
+                //console.log("pointer UP");
                 if (this.selectedObject) {
+
+                    this.movementArray.push(this.selectedObject.absolutePosition.clone());
+                    this.rotationArray.push(this.selectedObject.absoluteRotationQuaternion.toEulerAngles().clone());
 
                     // deselect object and notify other clients
                     this.selectedObject.setParent(null);
-                    Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
+                    if (this.textureNode.getChildMeshes()[0].isVisible) {
+                        Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name, true));
+                    } else {
+                        Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name));
+                    }
 
                     this.selectedObject = null;
-                    //this.prevObjPos = null;
                 }
 
                 this.destroyWidget.isVisible = false;
-                this.colorWidget.isVisible = false;
+                //this.colorWidget.isVisible = false;
                 this.textureWidget.isVisible = false;
+                this.textureNode.getChildMeshes().forEach((mesh) => {
+                    mesh.isVisible = false;
+                });
                 break;
         }
     }
@@ -786,6 +851,7 @@ class Game
         var newMesh = MeshBuilder.CreatePolyhedron("name", { type: num, size: 1 }, this.scene);
         newMesh.name = this.user + newMesh.uniqueId.toString();
         newMesh.position = new Vector3(2, 3, 4);
+        newMesh.material = new StandardMaterial((newMesh.name + "_mat"), this.scene);
         this.envObjects.set(newMesh.name, newMesh);
 
         // send message creation to other clients
@@ -793,14 +859,22 @@ class Game
     }
 
     // handle widget events
-    private widgetEvent(parentPos: Vector3) {
-        if (this.selectedObject && Vector3.Distance(this.currentWidget!.absolutePosition.clone(), parentPos) > this.minMove) {
+    private widgetEvent(parentMesh: AbstractMesh) {
+        //if (this.selectedObject && Vector3.Distance(this.currentWidget!.absolutePosition.clone(), parentPos) > this.minMove) {
+        if (this.selectedObject && Vector3.Distance(this.currentWidget!.absolutePosition.clone(), parentMesh.absolutePosition.clone()) > this.minMove) {
             if (this.currentWidget!.name.startsWith("destroy")) {
                 this.destroyObj();
             } else if (this.currentWidget!.name.startsWith("color")) {
-                console.log("color");
+                //console.log("color");
+                //this.colorPicker.isVisible = true;
+                //this.colorPicker.setParent(parentMesh);
+                //Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name, true));
             } else if (this.currentWidget!.name.startsWith("texture")) {
-                console.log("texture");
+                //console.log("texture");
+                this.textureNode.position = this.currentWidget!.absolutePosition.clone();
+                this.textureNode.getChildMeshes().forEach((mesh) => {
+                    mesh.isVisible = true;
+                });
             }
         }
     }
@@ -817,7 +891,7 @@ class Game
             this.selectedObject = null;
 
             this.destroyWidget.isVisible = false;
-            this.colorWidget.isVisible = false;
+            //this.colorWidget.isVisible = false;
             this.textureWidget.isVisible = false;
         }
     }
@@ -905,7 +979,7 @@ class Game
                         // item.rotation = Object.assign(item.rotation, msg.info.rotation);
                         // item.scaling = Object.assign(item.scaling, msg.info.scaling);
 
-                        if (this.isUpdateComplete){  // TODO i feel like this is going to screw with things...
+                        if (this.isUpdateComplete){
 
                             this.frame = 0; 
                             if (item.position) { // how is this even running??
@@ -972,31 +1046,17 @@ class Game
                                         this.scene.removeAnimation(rotationAnimation);
                                     });
 
-                                    //this.scene.beginAnimation(item, 0, frame - 20, false, 1, () =>
-                                    //{
-                                    //    //console.log('animation complete'); 
-                                    //    frame = 0; 
-                                    //    this.isUpdateComplete = true;
-
-
-                                    //    // intended to update positions after animation is complete
-                                    //    item!.position = Object.assign(item!.position, movement_array[-1]);  // will go to most recent position
-                                    //    item!.rotation = Object.assign(item!.rotation, msg.info.rotation);
-                                    //    item!.scaling = Object.assign(item!.scaling, msg.info.scaling);
-
-                                    //    this.scene.removeAnimation(object_animation); 
-
-                                    //});
-
                                 }
                             }
                         }
 
                         if (msg.info.selected) {  // if other user has object selected, highlight in their color and disable selection
+                            console.log("item selected!!!");
                             item.edgesColor = Object.assign(item.edgesColor, msg.info.color);
                             item.enableEdgesRendering();
                             item.isPickable = false;
-                        } else {  // when other user deselects, unhighlight and allow selection
+                        }
+                        else {  // when other user deselects, unhighlight and allow selection
                             item.disableEdgesRendering();
                             item.isPickable = true;
                         }
