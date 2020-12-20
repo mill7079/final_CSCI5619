@@ -4,7 +4,7 @@
 
 import { Engine } from "@babylonjs/core/Engines/engine"; 
 import { Scene } from "@babylonjs/core/scene";
-import { Vector3, Color3 } from "@babylonjs/core/Maths/math";
+import { Vector3, Color3, Color4 } from "@babylonjs/core/Maths/math";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial";
 import { UniversalCamera } from "@babylonjs/core/Cameras/universalCamera";
 import { WebXRControllerComponent } from "@babylonjs/core/XR/motionController/webXRControllercomponent";
@@ -29,6 +29,8 @@ import { Ray } from "@babylonjs/core/Culling/ray";
 import { Axis } from "@babylonjs/core/Maths/math.axis";
 import { Quaternion } from "@babylonjs/core/Maths/math.vector";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode";
+import { StackPanel } from "@babylonjs/gui/2D/controls/stackPanel";
+import { Button } from "@babylonjs/gui/2D/controls/button";
 
 import * as MATRIX from "matrix-js-sdk";
 
@@ -86,6 +88,7 @@ class Game
     private guiPlane: AbstractMesh | null;
     private loginStatus: AbstractMesh | null;
     private syncStatus: AbstractMesh | null;
+    
     private black = "#070707";
     private gray = "#707070";
 
@@ -93,6 +96,7 @@ class Game
     private envObjects: Map<string, AbstractMesh>;
     private userColor: Color3;
     private isUpdateComplete: Boolean | null;
+    private tutorialStatus: AbstractMesh | null;
 
     private failedLogin: TextBlock | null;
 
@@ -149,6 +153,7 @@ class Game
         this.loginStatus = null;
         this.failedLogin = null;
         this.syncStatus = null;
+        this.tutorialStatus = null; 
 
         this.envUsers = new Map();
         this.envObjects = new Map();
@@ -385,6 +390,58 @@ class Game
         syncing.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
         syncMesh.addControl(syncing);
 
+        // direction status page for even more visual feedback for tutorial
+        this.tutorialStatus = MeshBuilder.CreatePlane("tutorialStatus", {}, this.scene);
+        this.tutorialStatus.position = this.guiPlane.position.clone();
+        this.tutorialStatus.isPickable = false;
+        this.tutorialStatus.isVisible = false;
+        
+        var tutorialMesh = AdvancedDynamicTexture.CreateForMesh(this.tutorialStatus, 512, 512);
+        tutorialMesh.background = this.black;
+        
+        var conjureText = new TextBlock();
+        conjureText.text = "Directions Overview \n 1. Use the right grip to conjure up an item \n 2. Hold right trigger to move that object around!";
+        conjureText.color = "white";
+        conjureText.fontSize = 20;
+        conjureText.textHorizontalAlignment = TextBlock.HORIZONTAL_ALIGNMENT_CENTER;
+        conjureText.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
+        tutorialMesh.addControl(conjureText);
+
+        // Create a parent transform for the object configuration panel
+        var configTransform = new TransformNode("textTransform");
+
+        // Create a plane for the object configuration panel
+        var configPlane = MeshBuilder.CreatePlane("configPlane", {width: 0.45, height: 0.45}, this.scene);
+        configPlane.position = new Vector3(-0.3, 2.3, 1);
+        configPlane.parent = configTransform;
+
+        var button = Button.CreateImageButton(
+            "button",
+            "Tutorial of Basic Controller Abilities", 
+            // question mark photo 
+            "/assets/question_mark.jpg"
+          );
+
+        button.textBlock!.color = "white"; 
+        button.textBlock!.fontSize = 20; 
+        
+        // // Create a dynamic texture the object configuration panel
+        var configTexture = AdvancedDynamicTexture.CreateForMesh(configPlane, 256, 256);
+        configTexture.background = (new Color4(.5, .5, .5, .25)).toHexString();
+        configTexture.addControl(button); 
+
+        button.onPointerClickObservable.add((key) => {
+           if(this.tutorialStatus?.isVisible)
+                {
+                    this.tutorialStatus!.isVisible = false;
+                    console.log('stack panel should be disabled'); 
+                }
+
+            else {
+                this.tutorialStatus!.isVisible = true;
+                console.log('stack panel should be re-enabled'); 
+            }}
+        )
 
         // keyboard to enter user/password
         var virtualKeyboard = VirtualKeyboard.CreateDefaultLayout("virtualKeyboard");
@@ -918,6 +975,9 @@ class Game
 
             // create self user object for other clients
             Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
+
+            // allows user to view tutorial when first starting to run 
+            this.tutorialStatus!.isVisible = true; 
 
             // add message listener to room
             this.client.on("event", (event: any) => {
