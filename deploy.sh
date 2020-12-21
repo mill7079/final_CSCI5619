@@ -1,10 +1,7 @@
 #!/bin/sh
 
-USER="your_user_name"
-MACHINE="any_CSE_Labs_Linux_machine"
-DIRECTORY=".www/Assignment-7/"
+USER="mill7079"
+MACHINE="csel-kh4250-02.cselabs.umn.edu"
+DIRECTORY=".www/Final/"
 
-#uncomment these lines if you add assets to the project
-#rm -rf dist/assets
-#cp -r assets dist/assets
-rsync -avr --delete --chmod=D701,F644 dist/ "$USER"@"$MACHINE":"$DIRECTORY"
+rsync -avr --delete dist/ "$USER"@"$MACHINE":"$DIRECTORY"
