@@ -43,7 +43,6 @@ module Messages {
     export var room = "!FQlzwKdCBFuEnQusdk:matrix.org";
 
     export function sendMessage(isNotice: boolean, content: string) {
-        console.log("send message");
         let send = {
             body: content,
             msgtype: isNotice ? "m.notice" : "m.text"
@@ -219,16 +218,6 @@ class Game
             texBox.parent = this.textureNode;
         }
 
-        //var tex1 = MeshBuilder.CreateBox("tex1", { size: 0.06 }, this.scene);
-        //var t1 = new Texture("assets/textures/purple.jpg", this.scene);
-        //var t1mat = new StandardMaterial("tex1Mat", this.scene);
-        //t1mat.diffuseTexture = t1;
-        //tex1.material = t1mat;
-        //tex1.position = new Vector3(0, 0.2, 0);
-        //tex1.isVisible = false;
-        //tex1.parent = this.textureNode;
-        //tex1.isPickable = false;
-
         // widget handling
         this.currentWidget = null;
         this.widgetPos = null;
@@ -336,17 +325,8 @@ class Game
                 this.rightHand.parent = this.rightController.grip!;
                 this.rightHand.isVisible = true;
 
-                //this.destroyWidget.parent = this.rightController.pointer;
-                //this.destroyWidget.position = new Vector3(0, -0.06, -0.11);
-
-                //this.colorWidget.parent = this.rightController.pointer;
-                //this.colorWidget.position = new Vector3(-0.06, 0.04, -0.11);
-
                 this.textureWidget.parent = this.rightController.pointer;
                 this.textureWidget.position = new Vector3(-0.06, 0.04, -0.11);
-
-                //this.textureWidget.parent = this.rightController.pointer;
-                //this.textureWidget.position = new Vector3(0.06, 0.04, -0.11);
 
                 this.destroyWidget.parent = this.rightController.pointer;
                 this.destroyWidget.position = new Vector3(0.06, 0.04, -0.11);
@@ -364,9 +344,6 @@ class Game
                 //this.colorPicker.position = this.leftHand.absolutePosition.clone();
                 //this.colorPicker.position.x += 0.3;
             }
-
-            //Messages.sendMessage(false, this.createUpdate(this.user));
-            //Messages.sendMessage(false, this.createMessage(MessageType.user, this.user));
         });
 
         // Don't forget to deparent objects from the controllers or they will be destroyed!
@@ -446,21 +423,21 @@ class Game
         this.failedLogin.isVisible = false;
 
         // sync status page for even more visual feedback
-        this.syncStatus = MeshBuilder.CreatePlane("syncStatus", {}, this.scene);
-        this.syncStatus.position = this.guiPlane.position.clone();
-        this.syncStatus.isPickable = false;
-        this.syncStatus.isVisible = false;
+        //this.syncStatus = MeshBuilder.CreatePlane("syncStatus", {}, this.scene);
+        //this.syncStatus.position = this.guiPlane.position.clone();
+        //this.syncStatus.isPickable = false;
+        //this.syncStatus.isVisible = false;
         
-        var syncMesh = AdvancedDynamicTexture.CreateForMesh(this.syncStatus, 512, 512);
-        syncMesh.background = this.black;
+        //var syncMesh = AdvancedDynamicTexture.CreateForMesh(this.syncStatus, 512, 512);
+        //syncMesh.background = this.black;
 
-        var syncing = new TextBlock();
-        syncing.text = "Updating environment...";
-        syncing.color = this.userColor.toHexString();
-        syncing.fontSize = 64;
-        syncing.textHorizontalAlignment = TextBlock.HORIZONTAL_ALIGNMENT_CENTER;
-        syncing.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
-        syncMesh.addControl(syncing);
+        //var syncing = new TextBlock();
+        //syncing.text = "Updating environment...";
+        //syncing.color = this.userColor.toHexString();
+        //syncing.fontSize = 64;
+        //syncing.textHorizontalAlignment = TextBlock.HORIZONTAL_ALIGNMENT_CENTER;
+        //syncing.textVerticalAlignment = TextBlock.VERTICAL_ALIGNMENT_CENTER;
+        //syncMesh.addControl(syncing);
 
         // direction status page for even more visual feedback for tutorial
         this.tutorialStatus = MeshBuilder.CreatePlane("tutorialStatus", {}, this.scene);
@@ -472,7 +449,7 @@ class Game
         tutorialMesh.background = this.black;
         
         var conjureText = new TextBlock();
-        conjureText.text = "Directions Overview \n 1. Use the right grip to conjure up an item \n 2. Hold right trigger to move that object around!";
+        conjureText.text = "Directions Overview \n 1. Use the right grip to conjure an item \n\n 2. Point at an object and hold the trigger \n to move that object around! \n\n 3. Teleport using the right thumbstick \n\n 4. While holding an object, grab the blue cube \n and release it away from that hand \n to change the object's texture \n\n 5. While holding the object, grab the red sphere \n and release it away from that hand \n to destroy the selected object";
         conjureText.color = "white";
         conjureText.fontSize = 20;
         conjureText.textHorizontalAlignment = TextBlock.HORIZONTAL_ALIGNMENT_CENTER;
@@ -596,8 +573,6 @@ class Game
             this.frame++;
 
             //if (this.frame % 20 == 0){   // record position once every 20 frames
-            console.log("selected obj pos: " + this.selectedObject.absolutePosition.clone());
-            console.log("movement array -1: " + this.movementArray[this.movementArray.length - 1]);
             if (this.frame % 20 == 0 && this.movementArray.length > 0 && Vector3.Distance(this.selectedObject.absolutePosition.clone(), this.movementArray[this.movementArray.length - 1]) > 0.1) {
                 this.movementArray.push(this.selectedObject.getAbsolutePosition().clone());
                 this.rotationArray.push(this.selectedObject.absoluteRotationQuaternion.toEulerAngles().clone());
@@ -794,8 +769,6 @@ class Game
     private processPointer(pointerInfo: PointerInfo) {
         switch (pointerInfo.type) {
             case PointerEventTypes.POINTERDOWN:
-                //console.log("pointer DOWN");
-                //console.log("origin mesh: " + pointerInfo.pickInfo?.originMesh?.name);
                 if (pointerInfo.pickInfo?.hit && !pointerInfo.pickInfo.pickedMesh?.name.endsWith("Plane")) {
                     this.selectedObject = pointerInfo.pickInfo.pickedMesh;
                     //console.log("mesh name: " + this.selectedObject?.name);
@@ -817,7 +790,6 @@ class Game
                 }
                 break;
             case PointerEventTypes.POINTERUP:
-                //console.log("pointer UP");
                 if (this.selectedObject) {
 
                     this.movementArray.push(this.selectedObject.absolutePosition.clone());
@@ -870,7 +842,6 @@ class Game
                 //this.colorPicker.setParent(parentMesh);
                 //Messages.sendMessage(false, this.createMessage(MessageType.item, this.selectedObject.name, true));
             } else if (this.currentWidget!.name.startsWith("texture")) {
-                //console.log("texture");
                 this.textureNode.position = this.currentWidget!.absolutePosition.clone();
                 this.textureNode.getChildMeshes().forEach((mesh) => {
                     mesh.isVisible = true;
@@ -891,7 +862,6 @@ class Game
             this.selectedObject = null;
 
             this.destroyWidget.isVisible = false;
-            //this.colorWidget.isVisible = false;
             this.textureWidget.isVisible = false;
         }
     }
@@ -956,7 +926,6 @@ class Game
 
                         // intended to update positions after animation is complete
                         item!.position = Object.assign(item!.position, movement_array[-1]);  // will go to most recent position
-                        //item!.rotation = Object.assign(item!.rotation, msg.info.rotation);
                         item!.rotation = Object.assign(item!.rotation, rotation_array[-1]);
                         item!.scaling = Object.assign(item!.scaling, msg.info.scaling);
 
@@ -979,9 +948,7 @@ class Game
                     type: type,
                     mesh: serializeNew ? ("data:" + JSON.stringify(SceneSerializer.SerializeMesh(this.envObjects.get(id)!, false, false))) : "",
                     info: serializeNew ? {} : {
-                        // position: this.selectedObject!.absolutePosition.clone(),
                         position: this.movementArray,
-                        //rotation: this.selectedObject!.absoluteRotationQuaternion.toEulerAngles().clone(),
                         rotation: this.rotationArray,
                         scaling: this.selectedObject!.scaling.clone(),
                         selected: this.selectedObject!.parent ? true : false,
@@ -1028,13 +995,11 @@ class Game
                 break;
         }
 
-        //console.log("sending message: " + JSON.stringify(message));
         return JSON.stringify(message);
     }
 
     // updates environment according to message received from room
     private updateEnv(message: string) {
-        //console.log("message: " + message);
         var msg = JSON.parse(message.trim());
 
         switch (msg.type) {
@@ -1048,9 +1013,6 @@ class Game
                     }
                 } else {  // update existing item
                     if (msg.mesh?.length == "") {  // update mesh positions only
-                        // item.position = Object.assign(item.position, msg.info.position);
-                        // item.rotation = Object.assign(item.rotation, msg.info.rotation);
-                        // item.scaling = Object.assign(item.scaling, msg.info.scaling);
 
                         this.animateItem(item, msg);
 
